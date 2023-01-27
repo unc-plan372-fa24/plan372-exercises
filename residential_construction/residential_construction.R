@@ -78,6 +78,24 @@ data = mutate(data, total_units = units_1unit + units_2unit + units_3or4unit + u
 # typology (econdep columns). This will require using lubridate to parse the
 # survey_date field, as well as group_by, summarize, and ggplot.
 
+data$survey_date = ym(data$survey_date)
+
+# monthly plot - we don't need to use floor_date because data is already monthly
+# (but it wouldn't hurt)
+monthly_new_construction = group_by(data, econdep, survey_date) %>%
+  summarize(total_units=sum(total_units))
+
+ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep, color=econdep)) +
+  geom_line()
+
+# annual plot
+data$year = year(data$survey_date)
+yearly_new_construction = group_by(data, econdep, year) %>%
+  summarize(total_units=sum(total_units))
+ggplot(yearly_new_construction, aes(x=year, y=total_units, group=econdep, color=econdep)) +
+  geom_line()
+
+
 # Think about how this plot might be misleading.
 # Let's scale by total number of housing units. This is available in the housing_units.csv,
 # from the 2000 Census.
