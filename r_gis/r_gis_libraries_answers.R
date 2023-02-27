@@ -8,7 +8,7 @@ library(sf)  # The sf package provides functions for working with spatial data
 # 3, to get the hang of working with spatial datasets in R
 # To read a shapefile or other spatial data format in R, we use the read_sf function.
 # Fill in the path to the file.
-census = read_sf()
+census = read_sf("r_gis/hw3-data/orange_durham_wake_block_groups.shp")
 
 # Spatial data in R is represented exactly the way the tabular data we've used in the past
 # is. If we View the dataset, we see a table with all of the attributes, just like
@@ -24,7 +24,7 @@ ggplot() +
 
 # There is no demographic information with the census data. That you'll have to get
 # from the separate CSV file. We can read this using read_csv like we did before
-census_demographics = read_csv()
+census_demographics = read_csv("r_gis/hw3-data/triangle_census.csv")
 
 # we can just use a left join to associate this with the geographic information we already
 # read. Before we do that, it's a good idea to make sure the join columns are unique in
@@ -39,7 +39,7 @@ census = left_join(census, census_demographics, by="GEOID")
 # GEOID is a double (number)
 # We can re-read the census CSV and specify that the GEOID should be a character
 census_demographics = read_csv(
-  "path",
+  "r_gis/hw3-data/triangle_census.csv",
   col_types=c(GEOID="character")
 )
 
@@ -99,6 +99,10 @@ libraries_buffer = st_buffer(libraries, 1000)
 
 # Map it again to make sure it worked. Exercise: make a map showing the census tracts,
 # the buffer, and the libraries
+ggplot() +
+  geom_sf(data=census) +
+  geom_sf(data=libraries_buffer, color="blue") +
+  geom_sf(data=libraries, color="red")
 
 # Now we need to identify the Census block groups which are near the libraries. We
 # use the st_intersects function to find these.
@@ -136,9 +140,50 @@ summarize(census, pct_white=sum(race_white_alone) / sum(total_population) * 100)
 # counties are outside their jurisdiction. Exercise: filter the data to only include
 # Wake County, and repeat the above analyses.
 # The COUNTYFP contains Census county FIPS codes. The code for Wake County is 183.
+wake = filter(census, COUNTYFP=="183")
+
+group_by(wake, library_zone) %>%
+  summarize(pct_white=sum(race_white_alone) / sum(total_population) * 100)
+
+summarize(wake, pct_white=sum(race_white_alone) / sum(total_population) * 100)
 
 # Another public service in Wake County is Cardinal Cycle bikeshare. Exercise: download
 # the Cardinal Cycle station locations from the Raleigh Open Data Portal:
 # https://data-ral.opendata.arcgis.com/datasets/ral::cardinal-cycle-stations/explore?location=35.797935%2C-78.624284%2C9.84
 # and perform a similar analysis. You may need to do some data cleaning to avoid
 # errors when mapping.
+cardinal_cycle = read_csv("r_gis/data/Cardinal_Cycle_Stations.csv")
+
+# There's one row where everything is NA. Remove it to avoid errors when running st_as_sf.
+cardinal_cycle = filter(cardinal_cycle, !is.na(X))
+
+cardinal_cycle = st_as_sf(cardinal_cycle, coords=c("X", "Y"), crs=4326)
+
+# Now, we can map the stations, with Census data in the background
+ggplot() +
+  geom_sf(data=census) +
+  geom_sf(data=cardinal_cycle)
+
+# reproject and buffer
+cardinal_cycle = st_transform(cardinal_cycle, 32119)
+cycle_buffer = st_buffer(cardinal_cycle, 1000)
+
+# Make sure the buffer worked
+ggplot() +
+  geom_sf(data=census) +
+  geom_sf(data=cycle_buffer, color="blue") +
+  geom_sf(data=cardinal_cycle, color="red")
+
+# find the block groups near Cardinal Cycle stations
+intersects = st_intersects(census, cycle_buffer)
+census$cycle_zone = apply(intersects, 1, any)
+
+# plot the selected area
+ggplot() +
+  geom_sf(data=census, aes(fill=cycle_zone))
+
+# compute demographics
+group_by(census, cycle_zone) %>%
+  summarize(pct_white=sum(race_white_alone) / sum(total_population) * 100)
+
+summarize(census, pct_white=sum(race_white_alone) / sum(total_population) * 100)
