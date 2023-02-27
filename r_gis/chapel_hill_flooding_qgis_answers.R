@@ -43,3 +43,17 @@ parcels = filter(parcels, !is.na(parcel_permits_total_construction_cost))
 # now, use group_by and summarize to compute development intensity inside and
 # outside the flood zone. Think about whether you are computing development intensity
 # per square foot, or per square foot per lot
+
+# I am summing up total cost and total area by flood zone / non flood zone, and
+# then computing intensity afterwards. If I just took a mean of the already-calculated
+# development intensity, I would undercount large parcels, because they would contribute
+# the same to the mean as small parcels, whereas in actuality development intensity large parcels 
+# represents more development.
+result = group_by(parcels, floodarea) %>%
+  summarize(total_cost=sum(parcel_permits_total_construction_cost), total_area=sum(Shapearea))
+
+result$intensity = result$total_cost / result$total_area
+result
+
+
+
