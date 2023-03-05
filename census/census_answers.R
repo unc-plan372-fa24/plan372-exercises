@@ -3,7 +3,6 @@
 # package provides an easier-to-use R alternative.
 
 # first, load libraries, as always
-# also loading the sf library, as we will be doing some mapping towards the end
 library(tidyverse)
 library(tidycensus)
 library(sf)
@@ -26,7 +25,8 @@ library(sf)
 # To find our data, we first need to find the variable codes for the variables we want.
 # running load_variables(year, dataset) will return a table of all the variables for that
 # dataset. acs1 and acs5 correspond to 1 and 5 years ACS; pl, sf1, sf2 represent different
-# subsections of the decennial census.
+# subsections of the decennial census. The names of the 5 year ACS refer to the final year
+# of data, so the 2019 five-year ACS covers 2015-2019.
 acs_vars = load_variables(2019, "acs5")
 
 # This list of variables is huge, and viewing it in RStudio is a pain. I usually
@@ -35,6 +35,41 @@ write_csv(acs_vars, "acsvars.csv")
 
 
 # Let's retrieve ACS data on means of transportation to work by North Carolina county
+commute = get_acs(
+  geography="county",  # could be tract, block group, etc.
+  variables=c(
+    "total_mode"="B08301_001",
+    "drove_alone"="B08301_003",
+    "transit"="B08301_010",
+    "taxi"="B08301_016",
+    "motorcycle"="B08301_017",
+    "bicycle"="B08301_018",
+    "walk"="B08301_019",
+    "other"="B08301_020",
+    "wfh"="B08301_021"
+  ),
+  year=2019,
+  state="NC",
+  survey="acs5",
+  output="wide"
+)
+
+View(commute)
+
+# All of the columns have both E and M values. These are the Estimates and Margins
+# of error, respectively. Unlike the decennial census, the ACS is conducted with a
+# sample of the population, which means the result is an estimate with some margin of
+# error due to random sampling error. A range from the estimate minus the standard
+# error to the estimate plus the standard error represents a 90% confidence interval—
+# that is, under the assumptions made by Census Bureau statisticians, if the ACS were
+# repeated with the entire population, there is a 90% probability the result would be
+# within this interval. Five-year ACS data represents five years of the survey put
+# together; this results in a larger sample size and thus smaller margins of error.
+# The Census Bureau is also able to publish more detailed information without endangering
+# respondent privacy since the sample size is larger.
+
+# Exercise: also retrieve travel time to work greater than 60 minutes.
+
 commute = get_acs(
   geography="county",  # could be tract, block group, etc.
   variables=c(
@@ -57,45 +92,133 @@ commute = get_acs(
   output="wide"
 )
 
-View(commute)
-
-# Exercise: also retrieve travel time to work
-
 #######################
 # Mapping Census data #
 #######################
 
 # The data we retrieved from the Census doesn't have any spatial information. If we
 # want to map it or do any spatial analysis, we need to join it with spatial information.
-# Spatial information is also available from the Census Bureau, through their TIGER/Line
-# site: https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html
-# We will create two maps: one of working from home prevalence, and one of long commutes (over 60 minutes).
+# There are two ways to do this. The simplest is to just tell tidycensus we want it to retrieve
+# geometry (shape/location) data as well, by setting geometry = T in our tidycensus function
+# call.
 
-# Download 2019 US County shapefile from that site, and load it into R.
-counties = read_sf("tl_2019_us_county.shp")
+commute = get_acs(
+  geography="county",  # could be tract, block group, etc.
+  variables=c(
+    "total_mode"="B08301_001",
+    "drove_alone"="B08301_003",
+    "transit"="B08301_010",
+    "taxi"="B08301_016",
+    "motorcycle"="B08301_017",
+    "bicycle"="B08301_018",
+    "walk"="B08301_019",
+    "other"="B08301_020",
+    "wfh"="B08301_021",
+    "total_ttime"="B08303_001",
+    "ttime_60_89"="B08303_012",
+    "ttime_90plus"="B08303_013"
+  ),
+  year=2019,
+  state="NC",
+  survey="acs5",
+  output="wide",
+  geometry=T
+)
 
-# we want to filter it to just NC counties. We can use the state FIPS (STATEFP) code to do that.
-# The code for North Carolina is 37
-nc_counties = filter(counties, STATEFP==37)
+commute
 
-# Join the datasets together
-nc_counties = left_join(nc_counties, commute, by="GEOID")
+# tidycensus will always return data in the geographic coordinates (latitute/longitude).
+# For mapping or analysis, we'll want to convert these to a projected coordinate system.
 
-# create a variable for WFH share
-nc_counties$wfh_share = nc_counties$wfhE / nc_counties$total_modeE
+# Exercise: reproject the data to NC State Plane
+commute = st_transform(commute, 32119)
 
-# project the data to North Carolina State Plane
-nc_counties = st_transform(nc_counties, 32119)
+# We can then easily map this data, just like we did with the libraries data. We'll
+# plot the percentage of people who usually work from home.
+# Here, since we're only mapping one dataset, I've put the dataset and aesthetic
+# information in the ggplot function.
+# I am calculating the percentage right in the aesthetic here. You could also calculate
+# it before plotting and store it in a variable.
+ggplot(commute, aes(fill=wfhE / total_modeE * 100)) +
+  geom_sf() +
+  scale_fill_fermenter(palette="Blues", n.breaks=5)
 
-# and map WFH share
-ggplot() +
-  geom_sf(data=nc_counties, aes(fill=wfh_share)) +
-  scale_fill_distiller()
+# It's fairly unusual for researchers to use the margin of error information, but it's a good
+# idea to at least look at it. Here, I plot the margin of error for working from home as a
+# proportion of the total level of working from home.
+ggplot(commute, aes(fill=wfhM / wfhE)) +
+  geom_sf() +
+  # I'm adding direction=1 so darker red is a higher margin of error (reversing the normal
+  # order of the color palette)
+  scale_fill_fermenter(palette="Reds", n.breaks=5, direction=1) +
+  # the legend label was ugly in the previous map. We can add labs (labels)
+  # to the map to tell ggplot how to label different aesthetics. Here, we label
+  # fill. You can label anything you put in the aes() function. \n indicates a line break.
+  labs(fill="WFH margin of error\n(proportion of estimate)") +
+  # I'm also cleaning up the look of the map a bit, by removing the graticule (gridlines),
+  # and the latitude-longitude markings, and giving the map a white background and black
+  # neatline (border)
+  theme(
+    panel.grid=element_blank(), # remove gridlines
+    axis.text = element_blank(), # remove latitude-longitude labels
+    axis.ticks = element_blank(), # remove tickmarks on axes
+    panel.background = element_rect(color="black", fill=NA) # make background white with black border
+  )
 
-# Exercise: map percent of population with commutes over 60 minutes
+# This explains the high levels of working from home in Hyde County - the margin of 
+# error is very high.
 
-nc_counties$hour_commute_share = (nc_counties$ttime_60_89E + nc_counties$ttime_90plusE) / nc_counties$total_ttimeE
+# Exercise: plot the proportion of people who commute over 60 minutes by county in North Carolina.
+# Label your legend and format your map as you like.
 
-ggplot() +
-  geom_sf(data=nc_counties, aes(fill=hour_commute_share)) +
-  scale_fill_distiller()
+# I am dividing by the total variable from the travel time data. These are not the same,
+# because travel time is not collected from people who WFH. I recommend always using totals
+# from the same ACS table. Label the legend.
+ggplot(commute, aes(fill=(ttime_60_89E + ttime_90plusE) / total_ttimeE)) +
+  geom_sf() +
+  scale_fill_fermenter(n.breaks=5, direction=1) +
+  labs(fill="Proportion who commute\nover 60 minutes") +
+  theme(
+    panel.grid=element_blank(), # remove gridlines
+    axis.text = element_blank(), # remove latitude-longitude labels
+    axis.ticks = element_blank(), # remove tickmarks on axes
+    panel.background = element_rect(color="black", fill=NA) # make background white with black border
+  )
+
+# Exercise: plot the percentage of 18-24 year olds by Census tract in Orange, Durham, and Wake counties.
+age = get_acs(
+  geography = "tract",
+  variables = c(
+    total_pop="B01001_001",
+    male_18_19="B01001_007",
+    male_20="B01001_008",
+    male_21="B01001_009",
+    male_22_24="B01001_010",
+    female_18_19="B01001_031",
+    female_20="B01001_032",
+    female_21="B01001_033",
+    female_22_24="B01001_034"
+  ),
+  state="NC",
+  county = c("Orange", "Durham", "Wake"),
+  year=2019,
+  survey = "acs5",
+  output = "wide",
+  geometry = T
+)
+
+age = mutate(age, prop18_24 = (
+    male_18_19E + male_20E + male_21E + male_22_24E +
+    female_18_19E + female_20E + female_21E + female_22_24E
+  ) / total_popE)
+
+ggplot(age, aes(fill=prop18_24 * 100)) +
+  geom_sf() +
+  scale_fill_fermenter(n.breaks=7, palette="Blues") +
+  labs(fill="Percentage 18-24\nyears old") +
+  theme(
+    panel.grid=element_blank(), # remove gridlines
+    axis.text = element_blank(), # remove latitude-longitude labels
+    axis.ticks = element_blank(), # remove tickmarks on axes
+    panel.background = element_rect(color="black", fill=NA) # make background white with black border
+  )
