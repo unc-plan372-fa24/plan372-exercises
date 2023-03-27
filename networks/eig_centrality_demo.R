@@ -5,7 +5,7 @@ library(tidyverse)
 library(igraph)
 
 # load data and create graph
-data = read_csv("sponsors.csv")
+data = read_csv("networks/sponsors.csv")
 
 sponsors = mutate(data,
                   sponsor1=if_else(sponsor < cosponsor, sponsor, cosponsor),

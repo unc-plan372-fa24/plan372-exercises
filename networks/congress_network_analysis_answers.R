@@ -109,8 +109,8 @@ total_edges = length(E(graph))
 total_nodes = length(V(graph))
 
 # How many possible edges are there in the graph?
-possible_edges = [your formula here]
-
+possible_edges = total_nodes * (total_nodes - 1) / 2
+  
 # now we can calculate edge density
 total_edges / possible_edges
 
@@ -170,6 +170,13 @@ centralities %>% arrange(closeness) %>% View()
 # data frame we use to create the graph. Copy the graph creation code from above and modify it to have
 # a weight column that is the reciprocal of the number of times two representatives worked together.
 
+sponsor_pairs = group_by(sponsors, sponsor1, sponsor2) %>%
+  summarize(weight=1/n())
+
+weight_graph = graph_from_data_frame(sponsor_pairs, directed=F)
+
+centralities = tibble(name=names(degree(weight_graph)), degree=degree(weight_graph), betweenness=betweenness(weight_graph), closeness=closeness(weight_graph), eigen=eigen_centrality(weight_graph)$vector)
+View(centralities)
 # how do the centralities compare to before?
 
 # Some representatives have become much more important in some centrality measures
