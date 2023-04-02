@@ -45,10 +45,9 @@ str_detect("I think doug did", "d[ou]g")
 #  [:space:] - whitespace (spaces, tabs, etc.)
 #  [:alnum:] - Alphabetic and numeric characters
 #  [:punct:] - Punctuation
-# These need to be used within a character class, i.e. another set of brackets
-str_detect("R2D2", "[[:alpha:]][[:digit:]][[:alpha:]][[:alnum:]]")
-str_detect("C3PO", "[[:alpha:]][[:digit:]][[:alpha:]][[:alnum:]]")
-str_detect("r2d2", "[[:alpha:]][[:digit:]][[:alpha:]][[:alnum:]]")
+str_detect("R2D2", "[:alpha:][:digit:][:alpha:][:alnum:]")
+str_detect("C3PO", "[:alpha:][:digit:][:alpha:][:alnum:]")
+str_detect("r2d2", "[:alpha:][:digit:][:alpha:][:alnum:]")
 
 # Inverting character classes
 # If you put a ^ as the first character within a character class, it will match
@@ -84,14 +83,14 @@ str_detect("dog", "d[ou]{2}g")
 str_detect("doug", "d[ou]{1,2}g")
 str_detect("dog", "d[ou]{1,2}g")
 
-# a[[:alpha:]]*s will match any word starting with a and ending with s, including as
-str_detect("as", "a[[:alpha:]]*s")
-str_detect("ads", "a[[:alpha:]]*s")
-str_detect("arts", "a[[:alpha:]]*s")
+# a[:alpha:]*s will match any word starting with a and ending with s, including as
+str_detect("as", "a[:alpha:]*s")
+str_detect("ads", "a[:alpha:]*s")
+str_detect("arts", "a[:alpha:]*s")
 
 # But it will also detect words with a and s in them, because the regular expression
 # just looks for patterns, not what's before or after them
-str_detect("carson", "a[[:alpha:]]*s")
+str_detect("carson", "a[:alpha:]*s")
 
 # similary, "dog" will match "boondoggle"
 str_detect("boondoggle", "dog")

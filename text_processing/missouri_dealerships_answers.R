@@ -9,7 +9,7 @@ library(tidyverse)
 
 # first, we will read the text file into a single string. We are using read_file here
 # which will read the file as a single string rather than a table like read_csv
-str = read_file("dealers_franchise_report.txt")
+str = read_file("text_processing/dealers_franchise_report.txt")
 
 # Now, we need to split the file into a list/vector, with one item for each dealership
 # we can do this with the str_split function, which takes the string, and a regular
@@ -19,9 +19,9 @@ str = read_file("dealers_franchise_report.txt")
 # before it. This tells R to use it to match a *, not to modify the character before it
 
 # str_split returns a list of lists - with one list for the components of each input
-# string. Since we only had one input string, we will retrieve the first list. [[ ]] in R
+# string. Since we only had one input string, we will retrieve the first list. [ ] in R
 # is like [], but retrieves only a single value (sometimes referred to as a scalar).
-dealers = str_split(str, "DEALER# \\**")[[1]]
+dealers = str_split(str, "DEALER# \\**")[1]
 
 dealers[1:3]
 
@@ -32,7 +32,7 @@ dealers = dealers[-c(1)]
 
 # the dealership records are kind of a mess, because all the lines have been smooshed
 # together. We can split each dealership record into lines, again with str_split. This
-# time, we don't use [[1]], because we want a list of lists - a list whose elements are
+# time, we don't use [1], because we want a list of lists - a list whose elements are
 # lists of all the lines associated with each dealership.
 # \n is the code in R and most other programming languages for a newline (return)
 dealers = str_split(dealers, "\n")
@@ -48,23 +48,23 @@ dealers = str_split(dealers, "\n")
 # Then, we'll move that code into map_dfr, like we did for web scraping, to apply it to each dealership record.
 
 # get the first dealership
-dealer = dealers[[1]]
+dealer = dealers[1]
 dealer
 
 # first, we want to find the first line, which contains the dealer name, dealer id, and phone number.
-dealer_info_line = first(dealer[str_detect(dealer, "^[[:whitespace:]]*D[[:digit:]]+.*PHONE: [[:digit:]]{3}-[[:digit:]]{3}-[[:digit:]]{4}")])
+dealer_info_line = first(dealer[str_detect(dealer, "^[:whitespace:]*[:alpha:]{1,2}[:digit:]+.*PHONE: [:digit:]{3}-[:digit:]{3}-[:digit:]{4}")])
 
 # now, write a regular expression that will extract the dealer number, the dealer name, and the phone
 # number from the dealer_info line
-dealer_info = str_match(dealer_info_line, "^[[:whitespace:]]*(D[[:digit:]]+)[[:whitespace:]]*(.*)[[:whitespace:]]*PHONE: ([[:digit:]]{3}-[[:digit:]]{3}-[[:digit:]]{4})")
+dealer_info = str_match(dealer_info_line, "^[:whitespace:]*([:alpha:]{1,2}[:digit:]+)[:whitespace:]*(.*)[:whitespace:]*PHONE: ([:digit:]{3}-[:digit:]{3}-[:digit:]{4})")
 
 # now, we need to extract the per-year sales from the remaining lines
 # We need to write a regular expression that will detect the lines, and then use (a variation of)
 # it to extract the lines with years
-count_lines = dealer[str_detect(dealer, "^[[:whitespace:]]*UNITS SOLD IN [[:digit:]]{4}[[:whitespace:]]+NEW:[[:whitespace:]]*[[:digit:]]+[[:whitespace:]]+USED:[[:whitespace:]]*[[:digit:]]+[[:whitespace:]]+TOTAL:[[:whitespace:]]*[[:digit:]]+[[:whitespace:]]*$")]
+count_lines = dealer[str_detect(dealer, "^[:whitespace:]*UNITS SOLD IN [:digit:]{4}[:whitespace:]+NEW:[:whitespace:]*[:digit:]+[:whitespace:]+USED:[:whitespace:]*[:digit:]+[:whitespace:]+TOTAL:[:whitespace:]*[:digit:]+[:whitespace:]*$")]
 
 # now, extract the relevant information
-counts = str_match(count_lines, "^[[:whitespace:]]*UNITS SOLD IN ([[:digit:]]{4})[[:whitespace:]]+NEW:[[:whitespace:]]*([[:digit:]]+)[[:whitespace:]]+USED:[[:whitespace:]]*([[:digit:]]+)[[:whitespace:]]+TOTAL:[[:whitespace:]]*([[:digit:]]+)[[:whitespace:]]*$")
+counts = str_match(count_lines, "^[:whitespace:]*UNITS SOLD IN ([:digit:]{4})[:whitespace:]+NEW:[:whitespace:]*([:digit:]+)[:whitespace:]+USED:[:whitespace:]*([:digit:]+)[:whitespace:]+TOTAL:[:whitespace:]*([:digit:]+)[:whitespace:]*$")
 
 counts
 
@@ -84,42 +84,50 @@ counts = select(counts, -all)
 
 View(counts)
 
-# now, just like when we were working with web scraping, we'll use map_dfr to apply the code
-# we wrote above to all dealerships
+# Now, we want to do this for every dealership in the data. To do this, we will
+# write a "function." We've been using functions since we started with R - a function
+# is stored R code that is executed with certain arguments, and returns some value.
+# For instance, read_csv is a function that takes the names of a file as the argument,
+# and returns the data read from the file.
 
-dealer_table = map_dfr(dealers, function (dealer) {
-  # first, we want to find the first line, which contains the dealer name, dealer id, and phone number.
-  dealer_info_line = first(dealer[str_detect(dealer, "^[[:whitespace:]]*D[[:digit:]]+.*PHONE: [[:digit:]]{3}-[[:digit:]]{3}-[[:digit:]]{4}")])
+# Here, we create our own function to process an individual dealer record, and use map
+# to apply it to each dealer records. We then use the function list_rbind (list row bind)
+# to convert the rows returned each time the function was called into a tibble.
+
+dealer_table = map(dealers, function (dealer) {
+    # first, we want to find the first line, which contains the dealer name, dealer id, and phone number.
+    dealer_info_line = first(dealer[str_detect(dealer, "^[:whitespace:]*[:alpha:]{1,2}[:digit:]+.*PHONE: [:digit:]{3}-[:digit:]{3}-[:digit:]{4}")])
   
-  # now, write a regular expression that will extract the dealer number, the dealer name, and the phone
-  # number from the dealer_info line
-  dealer_info = str_match(dealer_info_line, "^[[:whitespace:]]*(D[[:digit:]]+)[[:whitespace:]]*(.*)[[:whitespace:]]*PHONE: ([[:digit:]]{3}-[[:digit:]]{3}-[[:digit:]]{4})")
-  
-  # now, we need to extract the per-year sales from the remaining lines
-  # We need to write a regular expression that will detect the lines, and then use (a variation of)
-  # it to extract the lines with years
-  count_lines = dealer[str_detect(dealer, "^[[:whitespace:]]*UNITS SOLD IN [[:digit:]]{4}[[:whitespace:]]+NEW:[[:whitespace:]]*[[:digit:]]+[[:whitespace:]]+USED:[[:whitespace:]]*[[:digit:]]+[[:whitespace:]]+TOTAL:[[:whitespace:]]*[[:digit:]]+[[:whitespace:]]*$")]
-  
-  # now, extract the relevant information
-  counts = str_match(count_lines, "^[[:whitespace:]]*UNITS SOLD IN ([[:digit:]]{4})[[:whitespace:]]+NEW:[[:whitespace:]]*([[:digit:]]+)[[:whitespace:]]+USED:[[:whitespace:]]*([[:digit:]]+)[[:whitespace:]]+TOTAL:[[:whitespace:]]*([[:digit:]]+)[[:whitespace:]]*$")
-  
-  counts
-  
-  # give the counts column names
-  colnames(counts) = c("all", "year", "new", "used", "total")
-  # convert the counts to a tibble (tabular data)
-  counts = as_tibble(counts)
-  
-  # we now have a table (counts) with all of the information about the counts. We just need
-  # to add the dealer name, number, and phone to it to have our final dataset
-  counts$dealer_id = dealer_info[1, 2]
-  counts$dealer_name = dealer_info[1, 3]
-  counts$dealer_phone = dealer_info[1, 4]
-  
-  counts = select(counts, -all)
-  
-  return(counts)
-})
+    # now, write a regular expression that will extract the dealer number, the dealer name, and the phone
+    # number from the dealer_info line
+    dealer_info = str_match(dealer_info_line, "^[:whitespace:]*([:alpha:]{1,2}[:digit:]+)[:whitespace:]*(.*)[:whitespace:]*PHONE: ([:digit:]{3}-[:digit:]{3}-[:digit:]{4})")
+    
+    # now, we need to extract the per-year sales from the remaining lines
+    # We need to write a regular expression that will detect the lines, and then use (a variation of)
+    # it to extract the lines with years
+    count_lines = dealer[str_detect(dealer, "^[:whitespace:]*UNITS SOLD IN [:digit:]{4}[:whitespace:]+NEW:[:whitespace:]*[:digit:]+[:whitespace:]+USED:[:whitespace:]*[:digit:]+[:whitespace:]+TOTAL:[:whitespace:]*[:digit:]+[:whitespace:]*$")]
+    
+    # now, extract the relevant information
+    counts = str_match(count_lines, "^[:whitespace:]*UNITS SOLD IN ([:digit:]{4})[:whitespace:]+NEW:[:whitespace:]*([:digit:]+)[:whitespace:]+USED:[:whitespace:]*([:digit:]+)[:whitespace:]+TOTAL:[:whitespace:]*([:digit:]+)[:whitespace:]*$")
+    
+    counts
+    
+    # give the counts column names
+    colnames(counts) = c("all", "year", "new", "used", "total")
+    # convert the counts to a tibble (tabular data)
+    counts = as_tibble(counts)
+    
+    # we now have a table (counts) with all of the information about the counts. We just need
+    # to add the dealer name, number, and phone to it to have our final dataset
+    counts$dealer_id = dealer_info[1, 2]
+    counts$dealer_name = dealer_info[1, 3]
+    counts$dealer_phone = dealer_info[1, 4]
+    
+    counts = select(counts, -all)
+    
+    return(counts)
+  }) %>%
+  list_rbind()
 
 View(dealer_table)
 
@@ -134,7 +142,7 @@ View(dealer_table)
 # will match one or the other of the patterns. Recall also that two backslashes before a special character
 # such as . will match that character, rather than whatever the special character would normally match.
 # The empty string at the end of str_replace indicates to replace with nothing.
-dealer_table = mutate(dealer_table, dealer_name=str_replace(dealer_name, ",? (LLC|INC)\\.?[[:whitespace:]]*$", ""))
+dealer_table = mutate(dealer_table, dealer_name=str_replace(dealer_name, ",? (LLC|INC)\\.?[:whitespace:]*$", ""))
 
 # Exercise: plot the number of used, new, and total cars sold over time in the state of Missouri
 
@@ -150,8 +158,9 @@ ggplot(byyear, aes(x=year)) +
   geom_line(aes(y=used, color="Used")) +
   geom_line(aes(y=total, color="Total"))
 
-# Exercise: what dealership sold the most cars in 2021?
+# Exercise: what dealership sold the most cars in 2022?
 filter(dealer_table, year==2022) %>%
   group_by(dealer_id) %>%
   summarize(total=sum(total), dealer_name=first(dealer_name)) %>%
   arrange(-total)
+

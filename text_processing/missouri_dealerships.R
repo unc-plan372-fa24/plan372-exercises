@@ -9,7 +9,7 @@ library(tidyverse)
 
 # first, we will read the text file into a single string. We are using read_file here
 # which will read the file as a single string rather than a table like read_csv
-str = read_file("dealers_franchise_report.txt")
+str = read_file("text_processing/dealers_franchise_report.txt")
 
 # Now, we need to split the file into a list/vector, with one item for each dealership
 # we can do this with the str_split function, which takes the string, and a regular
@@ -84,14 +84,22 @@ counts = select(counts, -all)
 
 View(counts)
 
-# now, just like when we were working with web scraping, we'll use map_dfr to apply the code
-# we wrote above to all dealerships
+# Now, we want to do this for every dealership in the data. To do this, we will
+# write a "function." We've been using functions since we started with R - a function
+# is stored R code that is executed with certain arguments, and returns some value.
+# For instance, read_csv is a function that takes the names of a file as the argument,
+# and returns the data read from the file.
 
-dealer_table = map_dfr(dealers, function (dealer) {
-  # YOUR CODE FROM ABOVE HERE
-  
-  return(counts)
-})
+# Here, we create our own function to process an individual dealer record, and use map
+# to apply it to each dealer records. We then use the function list_rbind (list row bind)
+# to convert the rows returned each time the function was called into a tibble.
+
+dealer_table = map(dealers, function (dealer) {
+    # YOUR CODE FROM ABOVE HERE
+    
+    return(counts)
+  }) %>%
+  list_rbind()
 
 View(dealer_table)
 
@@ -111,5 +119,5 @@ dealer_table = mutate(dealer_table, dealer_name=str_replace(dealer_name, "your r
 # Exercise: plot the number of used, new, and total cars sold over time in the state of Missouri
 
 
-# Exercise: what dealership sold the most cars in 2021?
+# Exercise: what dealership sold the most cars?
 
