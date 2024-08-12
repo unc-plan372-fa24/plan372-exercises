@@ -126,7 +126,7 @@ dealer_table = map(dealers, function (dealer) {
     counts = select(counts, -all)
     
     return(counts)
-  }) %>%
+  }) |>
   list_rbind()
 
 View(dealer_table)
@@ -150,7 +150,7 @@ dealer_table = mutate(dealer_table, dealer_name=str_replace(dealer_name, ",? (LL
 dealer_table = mutate(dealer_table, year=as.numeric(year), total=as.numeric(total), new=as.numeric(new), used=as.numeric(used))
 
 # Then, group by year
-byyear = group_by(dealer_table, year) %>% summarize(new=sum(new), used=sum(used), total=sum(total))
+byyear = group_by(dealer_table, year) |> summarize(new=sum(new), used=sum(used), total=sum(total))
 
 # then plot
 ggplot(byyear, aes(x=year)) +
@@ -159,8 +159,8 @@ ggplot(byyear, aes(x=year)) +
   geom_line(aes(y=total, color="Total"))
 
 # Exercise: what dealership sold the most cars in 2022?
-filter(dealer_table, year==2022) %>%
-  group_by(dealer_id) %>%
-  summarize(total=sum(total), dealer_name=first(dealer_name)) %>%
+filter(dealer_table, year==2022) |>
+  group_by(dealer_id) |>
+  summarize(total=sum(total), dealer_name=first(dealer_name)) |>
   arrange(-total)
 

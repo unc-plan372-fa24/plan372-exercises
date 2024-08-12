@@ -79,11 +79,11 @@ rbob = rename(
 # recorded on one day, and conventional the next, though, we still want to be able to compare
 # them. Instead, we'll create a yearly average, and plot that.
 conv$year = year(conv$Date)
-conv_annual = group_by(conv, year) %>%
+conv_annual = group_by(conv, year) |>
   summarize(ny_conventional=mean(ny_conventional), gulf_conventional=mean(gulf_conventional))
 
 rbob$year = year(rbob$Date)
-rbob_annual = group_by(rbob, year) %>%
+rbob_annual = group_by(rbob, year) |>
   summarize(la_rbob=mean(la_rbob))
 
 # Join the datasets together

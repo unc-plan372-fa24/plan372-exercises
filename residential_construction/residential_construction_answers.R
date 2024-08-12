@@ -82,7 +82,7 @@ data$survey_date = ym(data$survey_date)
 
 # monthly plot - we don't need to use floor_date because data is already monthly
 # (but it wouldn't hurt)
-monthly_new_construction = group_by(data, econdep, survey_date) %>%
+monthly_new_construction = group_by(data, econdep, survey_date) |>
   summarize(total_units=sum(total_units))
 
 ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep, color=econdep)) +
@@ -90,7 +90,7 @@ ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep
 
 # annual plot
 data$year = year(data$survey_date)
-yearly_new_construction = group_by(data, econdep, year) %>%
+yearly_new_construction = group_by(data, econdep, year) |>
   summarize(total_units=sum(total_units))
 ggplot(yearly_new_construction, aes(x=year, y=total_units, group=econdep, color=econdep)) +
   geom_line()
@@ -104,7 +104,7 @@ data = left_join(data, housing_units, by=c("state_fips", "county_fips"))
 
 # Now, make those plots again, but scaled by total housing units
 # monthly plot
-monthly_new_construction = group_by(data, econdep, survey_date) %>%
+monthly_new_construction = group_by(data, econdep, survey_date) |>
   summarize(total_units=sum(total_units) / sum(total_housing_units))
 
 ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep, color=econdep)) +
@@ -112,7 +112,7 @@ ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep
 
 # annual plot
 data$year = year(data$survey_date)
-yearly_new_construction = group_by(data, econdep, year) %>%
+yearly_new_construction = group_by(data, econdep, year) |>
   summarize(total_units=sum(total_units) / sum(total_housing_units))
 ggplot(yearly_new_construction, aes(x=year, y=total_units, group=econdep, color=econdep)) +
   geom_line()
@@ -132,7 +132,7 @@ data = filter(data, !is.na(total_housing_units))
 
 # recreate the plots
 # monthly plot
-monthly_new_construction = group_by(data, econdep, survey_date) %>%
+monthly_new_construction = group_by(data, econdep, survey_date) |>
   summarize(total_units=sum(total_units) / sum(total_housing_units))
 
 ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep, color=econdep)) +
@@ -140,7 +140,7 @@ ggplot(monthly_new_construction, aes(x=survey_date, y=total_units, group=econdep
 
 # annual plot
 data$year = year(data$survey_date)
-yearly_new_construction = group_by(data, econdep, year) %>%
+yearly_new_construction = group_by(data, econdep, year) |>
   summarize(total_units=sum(total_units) / sum(total_housing_units))
 ggplot(yearly_new_construction, aes(x=year, y=total_units, group=econdep, color=econdep)) +
   geom_line()

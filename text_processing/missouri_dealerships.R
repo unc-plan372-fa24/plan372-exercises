@@ -98,7 +98,7 @@ dealer_table = map(dealers, function (dealer) {
     # YOUR CODE FROM ABOVE HERE
     
     return(counts)
-  }) %>%
+  }) |>
   list_rbind()
 
 View(dealer_table)

@@ -126,7 +126,7 @@ ggplot() +
 
 # and now, we can compare the demographics of the Census tracts around libraries to the
 # demographics of the region as a whole, using group_by
-group_by(census, library_zone) %>%
+group_by(census, library_zone) |>
   summarize(pct_white=sum(race_white_alone) / sum(total_population) * 100)
 
 # Does this compare the demographics of the library service area to all of the Triangle?
@@ -142,7 +142,7 @@ summarize(census, pct_white=sum(race_white_alone) / sum(total_population) * 100)
 # The COUNTYFP contains Census county FIPS codes. The code for Wake County is 183.
 wake = filter(census, COUNTYFP=="183")
 
-group_by(wake, library_zone) %>%
+group_by(wake, library_zone) |>
   summarize(pct_white=sum(race_white_alone) / sum(total_population) * 100)
 
 summarize(wake, pct_white=sum(race_white_alone) / sum(total_population) * 100)
@@ -183,7 +183,7 @@ ggplot() +
   geom_sf(data=census, aes(fill=cycle_zone))
 
 # compute demographics
-group_by(census, cycle_zone) %>%
+group_by(census, cycle_zone) |>
   summarize(pct_white=sum(race_white_alone) / sum(total_population) * 100)
 
 summarize(census, pct_white=sum(race_white_alone) / sum(total_population) * 100)

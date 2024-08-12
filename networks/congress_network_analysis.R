@@ -32,12 +32,12 @@ View(data)
 sponsors = mutate(data,
                   sponsor1=if_else(sponsor < cosponsor, sponsor, cosponsor),
                   sponsor2=if_else(sponsor < cosponsor, cosponsor, sponsor)
-                  ) %>% select(-c(sponsor, cosponsor))
+                  ) |> select(-c(sponsor, cosponsor))
 View(sponsors)
 
 # now we just need to create a version of the data with a single entry for each
 # sponsor pair
-sponsor_pairs = group_by(sponsors, sponsor1, sponsor2) %>% summarize()
+sponsor_pairs = group_by(sponsors, sponsor1, sponsor2) |> summarize()
 
 # Finally, we can create the graph
 graph = graph_from_data_frame(sponsor_pairs, directed=F)
@@ -125,14 +125,14 @@ edge_density(graph)
 # to the graph overall. The simplest is "degree centrality", which is just the "degree"
 # or number of edges connected to a node. Does the degree centrality suggest any reason
 # why Mike Carey and Cedric Richmond were so far apart?
-degree(graph) %>% sort()
+degree(graph) |> sort()
 
 # more complex types of centrality include closeness centrality, which is the inverse
 # of the total distance from a node to all others. So higher closeness centrality indicates
 # you can reach more representatives with fewer hops. Closeness centrality is often
 # normalized by multiplying by the number of nodes - 1 (https://en.wikipedia.org/wiki/Closeness_centrality)
 # so it represents the inverse of the average distance rather than the sum.
-closeness(graph, normalize=T) %>% sort()
+closeness(graph, normalize=T) |> sort()
 
 # Another type of centrality metric is betweenness centrality - this measures how
 # often a representative is on the shortest path between all pairs of other representativess.
@@ -141,7 +141,7 @@ closeness(graph, normalize=T) %>% sort()
 # with high betweeness centrality are very important to the network and if removed would increase
 # the distance significantly, but this is not necessarily the case as betweenness centrality
 # doesn't mean there is not another representative that could play a similar role.
-betweenness(graph) %>% sort()
+betweenness(graph) |> sort()
 
 # The final metric of centrality we'll consider is eigenvector centrality. The
 # centrality of each node is a scaled sum of the centralities of all the nodes it's
@@ -154,12 +154,12 @@ betweenness(graph) %>% sort()
 
 # Unlike other centrality metrics, the eigen_centrality function returns a list. We can
 # get the vector of centralities with $vector
-eigen_centrality(graph)$vector %>% sort()
+eigen_centrality(graph)$vector |> sort()
 
 # Do the different centrality metrics tell similar stories? If they differ, why do you think they do?
 centralities = tibble(name=names(degree(graph)), degree=degree(graph), betweenness=betweenness(graph), closeness=closeness(graph), eigen=eigen_centrality(graph)$vector)
-select(centralities, -name) %>% cor()
-centralities %>% arrange(closeness) %>% View()
+select(centralities, -name) |> cor()
+centralities |> arrange(closeness) |> View()
 
 # We've been working with an unweighted graph up until now, meaning the edges were all the same. However,
 # it's reasonable to think that people who cosponsor more often might be more connected. We can use a

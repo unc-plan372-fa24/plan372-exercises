@@ -50,7 +50,7 @@ mean(data$entries)
 # the median being so different from the mean suggests outliers - perhaps
 # one very large garage. Let's look at the mean entries by garage
 
-group_by(data, facility) %>%
+group_by(data, facility) |>
   summarize(mean_entries=mean(entries))
 
 # But this could be misleading. Does each row represent a single day at a single garage?
@@ -59,7 +59,7 @@ group_by(data, facility) %>%
 # We can use the group_by and summarize functions to create a dataset
 # that shows _total_ entries and exits for each day, and create a new
 # table with this information.
-total_entries = group_by(data, date, facility) %>%
+total_entries = group_by(data, date, facility) |>
   summarize(entries=sum(entries), exits=sum(exits))
 
 # Look at the data we have now
@@ -117,7 +117,7 @@ total_entries$year = year(total_entries$date)
 unique(total_entries$year)
 
 # now, look at mean entries by garage and year
-group_by(total_entries, facility, year) %>%
+group_by(total_entries, facility, year) |>
   summarize(entries=mean(entries))
 
 # The year_totals table is in "long" format - one row for each
@@ -126,8 +126,8 @@ group_by(total_entries, facility, year) %>%
 # the column names are taken from the field named in names_from,
 # and the values from the field named in values_from
 # now, look at mean entries by garage and year
-group_by(total_entries, facility, year) %>%
-  summarize(entries=mean(entries)) %>%
+group_by(total_entries, facility, year) |>
+  summarize(entries=mean(entries)) |>
   pivot_wider(names_from=year, values_from=entries)
 
 # Exercise: repeat the above, but get the per-month mean rather than per year,
@@ -158,8 +158,8 @@ total_entries$weekend = recode(total_entries$day_of_week, "Mon"="weekday", "Tue"
 stopifnot(!any(is.na(total_entries$weekend)))
 
 # calculate the means
-group_by(total_entries, facility, weekend) %>%
-  summarize(entries=mean(entries)) %>%
+group_by(total_entries, facility, weekend) |>
+  summarize(entries=mean(entries)) |>
   pivot_wider(names_from=weekend, values_from=entries)
 
 # Now, compute means by season
@@ -171,7 +171,7 @@ group_by(total_entries, facility, weekend) %>%
 # most people use the ggplot2 library, which is part of tidyverse.
 
 # Let us create a dataset that shows how many entries to all garages there were on each day
-citywide_entries = group_by(total_entries, date) %>% summarize(entries=sum(entries))
+citywide_entries = group_by(total_entries, date) |> summarize(entries=sum(entries))
 
 # Create a plot using the total_entries table. We define an "aesthetic" that the date
 # will be the x axis, and the number of entries will be the y axis
@@ -184,7 +184,7 @@ ggplot(citywide_entries, aes(x=date, y=entries)) +
 # the floor_date function returns the beginning of whatever period you put in - in this
 # case, the beginning of the month
 citywide_entries$month_year = floor_date(citywide_entries$date, unit="month")
-monthly_entries = group_by(citywide_entries, month_year) %>% summarize(entries=sum(entries))
+monthly_entries = group_by(citywide_entries, month_year) |> summarize(entries=sum(entries))
 ggplot(monthly_entries, aes(x=month_year, y=entries)) +
   geom_line()
 
@@ -195,7 +195,7 @@ ggplot(monthly_entries, aes(x=month_year, y=entries)) +
 # ggplot to group by the facility
 
 total_entries$year_month = floor_date(total_entries$date, unit="month")
-garage_month_entries = group_by(total_entries, facility, year_month) %>%
+garage_month_entries = group_by(total_entries, facility, year_month) |>
   summarize(entries=sum(entries))
 
 # look at the result of that call

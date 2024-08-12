@@ -27,6 +27,6 @@ resp = scrape(session)
 # because it contains a space; we choose single quotes since the entire selector is
 # enclosed in double quotes.
 # We pipe the table element into html_table() to turn it into a dataframe
-table = html_element(resp, "h3:contains('Staten Island') + table") %>% html_table()
+table = html_element(resp, "h3:contains('Staten Island') + table") |> html_table()
 
 View(table)

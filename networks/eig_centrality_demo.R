@@ -10,11 +10,11 @@ data = read_csv("networks/sponsors.csv")
 sponsors = mutate(data,
                   sponsor1=if_else(sponsor < cosponsor, sponsor, cosponsor),
                   sponsor2=if_else(sponsor < cosponsor, cosponsor, sponsor)
-) %>% select(-c(sponsor, cosponsor))
+) |> select(-c(sponsor, cosponsor))
 
 # now we just need to create a version of the data with a single entry for each
 # sponsor pair
-sponsor_pairs = group_by(sponsors, sponsor1, sponsor2) %>% summarize()
+sponsor_pairs = group_by(sponsors, sponsor1, sponsor2) |> summarize()
 
 # Finally, we can create the graph
 graph = graph_from_data_frame(sponsor_pairs, directed=F)

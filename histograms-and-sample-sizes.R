@@ -22,5 +22,5 @@ ggplot(mtcars, aes(x=mpg)) +
 # To count the number of observations in each group of a groupby, you can use the n()
 # function inside summarize. n() returns the number of observations in each group.
 # This counts the number of cars with 4, 6, and 8 cylinders in the mtcars dataset
-group_by(mtcars, cyl) %>%
+group_by(mtcars, cyl) |>
   summarize(number=n())

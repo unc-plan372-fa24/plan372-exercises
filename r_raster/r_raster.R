@@ -55,7 +55,7 @@ places[bycity$ID, "new_development"] = bycity$NLCD.Land.Cover.Class
 
 # we can convert places into a tibble (table) and sort by new development descending
 # to get the city with the most development
-as_tibble(places) %>% arrange(-new_development) %>% select(NAME, new_development)
+as_tibble(places) |> arrange(-new_development) |> select(NAME, new_development)
 
 # now, we can bring in the inundation layer.
 # Excercise: read and plot the inundation layer

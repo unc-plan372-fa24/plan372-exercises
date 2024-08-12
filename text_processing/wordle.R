@@ -16,7 +16,7 @@ words = read_csv("words.csv")
 WORDLEN = 5
 
 choose_word = function () {
-  word = words$word[str_length(words$word) == WORDLEN] %>% sample(1)
+  word = words$word[str_length(words$word) == WORDLEN] |> sample(1)
   # use a list to obfuscate answer in data view
   chosen_word <<- list(str_to_lower(word))
 }

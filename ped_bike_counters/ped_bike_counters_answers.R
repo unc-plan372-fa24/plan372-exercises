@@ -48,7 +48,7 @@ data$month_year = floor_date(data$Time, unit="month")
 
 # Unlike the SFpark data, different trails are in different columns here, so we
 # do not need to include them in the group_by. Group by groups rows together.
-monthly_bike_ped = group_by(data, month_year) %>%
+monthly_bike_ped = group_by(data, month_year) |>
   summarize(
     att_downtown_bike=sum(att_downtown_bike),
     att_downtown_ped=sum(att_downtown_ped),
@@ -92,7 +92,7 @@ all(is.na(data$att_i40_ped) == is.na(data$att_i40_bike))
 
 
 # When are these missing data points? We can use a histogram to find out
-missings = group_by(data, month_year) %>%
+missings = group_by(data, month_year) |>
   summarize(proportion_missing = mean(is.na(att_i40_bike)))
 ggplot(missings, aes(x=month_year, y=proportion_missing)) +
   geom_col()
@@ -104,12 +104,12 @@ sum(is.na(data$att_downtown_ped))
 sum(is.na(data$att_downtown_bike))
 all(is.na(data$att_downtown_ped) == is.na(data$att_downtown_bike))
 
-missings = group_by(data, month_year) %>%
+missings = group_by(data, month_year) |>
   summarize(proportion_missing = mean(is.na(att_downtown_bike)))
 ggplot(missings, aes(x=month_year, y=proportion_missing)) +
   geom_col()
 
-missings = group_by(data, month_year) %>%
+missings = group_by(data, month_year) |>
   summarize(proportion_missing = mean(is.na(att_downtown_ped)))
 ggplot(missings, aes(x=month_year, y=proportion_missing)) +
   geom_col()
@@ -140,7 +140,7 @@ data = mutate(
 
 # Exercise: Plot the data again. Are the gaps gone?
 
-monthly_bike_ped = group_by(data, month_year) %>%
+monthly_bike_ped = group_by(data, month_year) |>
   summarize(
     att_downtown_bike_complete=sum(att_downtown_bike_complete),
     att_downtown_ped_complete=sum(att_downtown_ped_complete),
@@ -170,7 +170,7 @@ data = mutate(data,
               att_i40_all_complete=replace_na(att_i40_all, 0)
               )
 
-monthly_totals = group_by(data, month_year) %>%
+monthly_totals = group_by(data, month_year) |>
   summarize(
     att_downtown_all_complete=sum(att_downtown_all_complete),
     att_i40_all_complete=sum(att_i40_all_complete)
@@ -191,7 +191,7 @@ ggplot(monthly_totals, aes(x=month_year)) +
 
 # Let's make a bar plot by time of day, for both sensors combined
 data$hour = hour(data$Time)
-hour_totals = group_by(data, hour) %>%
+hour_totals = group_by(data, hour) |>
   summarize(total = mean(att_downtown_all + att_i40_all))
 
 ggplot(hour_totals, aes(x=hour, y=total)) +
@@ -203,7 +203,7 @@ ggplot(hour_totals, aes(x=hour, y=total)) +
 # You can add na.rm=T to most R function calls to tell it to ignore NA values
 
 
-hour_totals = group_by(data, hour) %>%
+hour_totals = group_by(data, hour) |>
   summarize(total = mean(att_downtown_all + att_i40_all, na.rm=T))
   
 
@@ -213,7 +213,7 @@ ggplot(hour_totals, aes(x=hour, y=total)) +
 # Question - what do the numbers on the y axis represent?
 # Exercise: modify the graph to show pedestrians per hour.
 
-hour_totals = group_by(data, hour) %>%
+hour_totals = group_by(data, hour) |>
   summarize(ped = mean(att_downtown_ped + att_i40_ped, na.rm=T))
 
 ggplot(hour_totals, aes(x=hour, y=ped)) +
@@ -223,7 +223,7 @@ ggplot(hour_totals, aes(x=hour, y=ped)) +
 
 # label=T gives us the names of the days, not the numbers
 data$dayofweek = wday(data$Time, label=T)
-day_totals = group_by(data, dayofweek) %>%
+day_totals = group_by(data, dayofweek) |>
   summarize(total = mean(att_downtown_all + att_i40_all, na.rm=T))
 
 ggplot(day_totals, aes(x=dayofweek, y=total)) +
@@ -253,7 +253,7 @@ summary(jan_feb$Time)
 # now, we need to create a date field so we can get daily totals
 jan_feb$date = date(jan_feb$Time)
 
-day_totals = group_by(jan_feb, date) %>%
+day_totals = group_by(jan_feb, date) |>
   summarize(total=sum(att_downtown_all, na.rm=T))
 
 ggplot(day_totals, aes(y=total)) +
@@ -264,7 +264,7 @@ ggplot(day_totals, aes(y=total)) +
 
 jan_feb_day = filter(jan_feb, hour(Time) >= 7 & hour(Time) <= 17)
 
-daytime_totals = group_by(jan_feb_day, date) %>%
+daytime_totals = group_by(jan_feb_day, date) |>
   summarize(total=sum(att_i40_all, na.rm=T))
 
 ggplot(daytime_totals, aes(y=total)) +

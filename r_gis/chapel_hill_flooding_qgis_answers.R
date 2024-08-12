@@ -21,7 +21,7 @@ data$PIN[duplicated(data$PIN)]
 # answer if we use this, because we'll be essentially duplicating the development that occurred
 # for each part of a parcel. So we should group the parcels and sum up the areas, but not sum
 # up the development costs, so we have one row per parcel that accurately reflects development
-parcels = group_by(data, PIN) %>%
+parcels = group_by(data, PIN) |>
   summarize(
     Shapearea=sum(Shapearea),  # we want to sum up the areas of the parts of the parcel
     parcel_permits_total_construction_cost=first(parcel_permits_total_construction_cost),
@@ -49,7 +49,7 @@ parcels = filter(parcels, !is.na(parcel_permits_total_construction_cost))
 # development intensity, I would undercount large parcels, because they would contribute
 # the same to the mean as small parcels, whereas in actuality development intensity large parcels 
 # represents more development.
-result = group_by(parcels, floodarea) %>%
+result = group_by(parcels, floodarea) |>
   summarize(total_cost=sum(parcel_permits_total_construction_cost), total_area=sum(Shapearea))
 
 result$intensity = result$total_cost / result$total_area

@@ -122,7 +122,7 @@ ggplot() +
 
 # and now, we can compare the demographics of the Census tracts around libraries to the
 # demographics of the region as a whole, using group_by
-group_by(census, library_zone) %>%
+group_by(census, library_zone) |>
   summarize(pct_white=sum(race_white_alone) / sum(total_population) * 100)
 
 # Does this compare the demographics of the library service area to all of the Triangle?

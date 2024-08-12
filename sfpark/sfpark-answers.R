@@ -52,7 +52,7 @@ median(data$entries)
 # the median being so different from the mean suggests outliers - perhaps
 # one very large garage. Let's look at the mean entries by garage
 
-group_by(data, facility) %>%
+group_by(data, facility) |>
   summarize(mean_entries=mean(entries))
 
 # But this could be misleading. Does each row represent a single day at a single garage?
@@ -63,7 +63,7 @@ group_by(data, facility) %>%
 # We can use the group_by and summarize functions to create a dataset
 # that shows _total_ entries and exits for each day, and create a new
 # table with this information.
-total_entries = group_by(data, date, facility) %>%
+total_entries = group_by(data, date, facility) |>
   summarize(entries=sum(entries), exits=sum(exits))
 
 # Look at the data we have now
@@ -71,7 +71,7 @@ View(total_entries[1:20,])
 
 # Now we can calculate the mean entries by garage, using this new dataset. This
 # is a per facility daily mean, not a per-usage type daily mean.
-group_by(total_entries, facility) %>%
+group_by(total_entries, facility) |>
   summarize(mean_entries=mean(entries))
 
 ##################
@@ -84,19 +84,19 @@ civic_center_data = filter(data, district == "Civic Center")
 
 # now, repeat the above analysis to compute total entries by day, and take the daily
 # average, using only data from Civic Center
-civic_center_total = group_by(civic_center_data, facility, date) %>%
+civic_center_total = group_by(civic_center_data, facility, date) |>
   summarize(entries=sum(entries))
 
 # use group_by and summarize to compute means
 
-group_by(civic_center_total, facility) %>%
+group_by(civic_center_total, facility) |>
   summarize(entries=mean(entries))
 
 # Repeat the process, looking only at garages in the Mission
 mission_data = filter(data, district == "Mission")
-mission_total = group_by(mission_data, facility, date) %>%
+mission_total = group_by(mission_data, facility, date) |>
   summarize(entries=sum(entries))
-group_by(mission_total, facility) %>%
+group_by(mission_total, facility) |>
   summarize(entries=mean(entries))
 
 ###################
@@ -134,7 +134,7 @@ total_entries$year = year(total_entries$date)
 unique(total_entries$year)
 
 # now, look at mean entries by garage and year
-group_by(total_entries, facility, year) %>%
+group_by(total_entries, facility, year) |>
   summarize(entries=mean(entries))
 
 # The year_totals table is in "long" format - one row for each
@@ -143,16 +143,16 @@ group_by(total_entries, facility, year) %>%
 # the column names are taken from the field named in names_from,
 # and the values from the field named in values_from
 # now, look at mean entries by garage and year
-group_by(total_entries, facility, year) %>%
-  summarize(entries=mean(entries)) %>%
+group_by(total_entries, facility, year) |>
+  summarize(entries=mean(entries)) |>
   pivot_wider(names_from=year, values_from=entries)
 
 # Exercise: repeat the above, but get the per-month mean rather than per year,
 # to show seasonal trends
 # You should have a table with rows for each garage and columns for January, February, etc.
 total_entries$month = month(total_entries$date)
-group_by(total_entries, facility, month) %>%
-  summarize(entries=mean(entries)) %>%
+group_by(total_entries, facility, month) |>
+  summarize(entries=mean(entries)) |>
   pivot_wider(names_from=month, values_from=entries)
 
 ########################
@@ -178,8 +178,8 @@ total_entries$weekend = recode(total_entries$day_of_week, "Mon"="weekday", "Tue"
 stopifnot(!any(is.na(total_entries$weekend)))
 
 # calculate the means
-group_by(total_entries, facility, weekend) %>%
-  summarize(entries=mean(entries)) %>%
+group_by(total_entries, facility, weekend) |>
+  summarize(entries=mean(entries)) |>
   pivot_wider(names_from=weekend, values_from=entries)
 
 # Now, compute means by season
@@ -191,8 +191,8 @@ total_entries$season = recode(total_entries$month,
                               `4`="Spring", `5`="Spring", `6`="Summer",
                               `7`="Summer", `8`="Summer", `9`="Fall",
                               `10`="Fall", `11`="Fall", `12`="Winter")
-group_by(total_entries, facility, season) %>%
-  summarize(entries=mean(entries)) %>%
+group_by(total_entries, facility, season) |>
+  summarize(entries=mean(entries)) |>
   pivot_wider(names_from=season, values_from=entries)
 
 
@@ -203,7 +203,7 @@ group_by(total_entries, facility, season) %>%
 # most people use the ggplot2 library, which is part of tidyverse.
 
 # Let us create a dataset that shows how many entries to all garages there were on each day
-citywide_entries = group_by(total_entries, date) %>% summarize(entries=sum(entries))
+citywide_entries = group_by(total_entries, date) |> summarize(entries=sum(entries))
 
 # Create a plot using the total_entries table. We define an "aesthetic" that the date
 # will be the x axis, and the number of entries will be the y axis
@@ -216,7 +216,7 @@ ggplot(citywide_entries, aes(x=date, y=entries)) +
 # the floor_date function returns the beginning of whatever period you put in - in this
 # case, the beginning of the month
 citywide_entries$month_year = floor_date(citywide_entries$date, unit="month")
-monthly_entries = group_by(citywide_entries, month_year) %>% summarize(entries=sum(entries))
+monthly_entries = group_by(citywide_entries, month_year) |> summarize(entries=sum(entries))
 ggplot(monthly_entries, aes(x=month_year, y=entries)) +
   geom_line()
 
@@ -229,7 +229,7 @@ ggplot(monthly_entries, aes(x=month_year, y=entries)) +
 # ggplot to group by the facility
 
 total_entries$year_month = floor_date(total_entries$date, unit="month")
-garage_month_entries = group_by(total_entries, facility, year_month) %>%
+garage_month_entries = group_by(total_entries, facility, year_month) |>
   summarize(entries=sum(entries))
 
 # look at the result of that call
@@ -243,7 +243,7 @@ ggplot(garage_month_entries, aes(x=year_month, y=entries, group=facility, color=
 # which garages have more of a seasonal trend? why?
 # exercise: look at weekly trends rather than monthly trends
 total_entries$week_year = floor_date(total_entries$date, unit="week")
-garage_week_entries = group_by(total_entries, facility, week_year) %>%
+garage_week_entries = group_by(total_entries, facility, week_year) |>
   summarize(entries=sum(entries))
 ggplot(garage_week_entries, aes(x=week_year, y=entries, group=facility, color=facility)) +
   geom_line()
@@ -255,7 +255,7 @@ data$month_year =
 
 # We first need to re-group the original data. Because total_entries was grouped
 # by facility, there is no district variable available.
-district_month_entries = group_by(data, month_year, district) %>%
+district_month_entries = group_by(data, month_year, district) |>
   summarize(entries=sum(entries))
 
 ggplot(district_month_entries, aes(x=month_year, y=entries, group=district, color=district)) +
@@ -273,7 +273,7 @@ unique(data$usage_type)
 # How many entries are from each of the usage types? What usage type is most common?
 # we use a sum rather than a mean here, as the denominator of the mean will vary
 # depending on how many garages offer that usage type
-group_by(data, usage_type) %>%
+group_by(data, usage_type) |>
   summarize(sum(entries))
 
 # Are the patterns of usage types different on the weekdays vs. the weekends?
@@ -284,7 +284,7 @@ data$weekend = recode(data$day_of_week, "Mon"="weekday", "Tue"="weekday", "Wed"=
                                "Fri"="weekday", "Sat"="weekend", "Sun"="weekend")
 
 # create a grouped data frame
-usage_types_weekday_weekend = group_by(data, usage_type, weekend) %>%
+usage_types_weekday_weekend = group_by(data, usage_type, weekend) |>
   summarize(entries=sum(entries))
 
 # Print it out with pivot_wider. We see that "transient" is most popular both on
@@ -302,7 +302,7 @@ ggplot(usage_types_weekday_weekend, aes(x=weekend, y=entries, fill=usage_type)) 
 # Make a plot of the monthly trend in number of entries by usage type.
 # Interestingly, the seasonal trend is really only present in the transient
 # usage type.
-monthly_usage_trend = group_by(data, usage_type, month_year) %>%
+monthly_usage_trend = group_by(data, usage_type, month_year) |>
   summarize(entries=sum(entries))
 ggplot(monthly_usage_trend, aes(x=month_year, y=entries, group=usage_type, color=usage_type)) +
   geom_line()

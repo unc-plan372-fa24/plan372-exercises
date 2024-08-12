@@ -35,15 +35,15 @@ grants = map_dfr(grant_elements, function (element) {
   
   # We use a CSS selector to find the link to the grant, and extract the text of the
   # link as this is the grant title
-  grant_title = html_element(element, "h3.entry-title a") %>% html_text2()
+  grant_title = html_element(element, "h3.entry-title a") |> html_text2()
   
   # The URL is not text in the page, but the HTML attribute href, so here we extract
   # the attribute.
-  grant_url = html_element(element, "h3.entry-title a") %>% html_attr("href")
+  grant_url = html_element(element, "h3.entry-title a") |> html_attr("href")
   
-  agency = html_element(element, ".grants-list__grant-header--grantmaking-agency dd") %>% html_text2()
+  agency = html_element(element, ".grants-list__grant-header--grantmaking-agency dd") |> html_text2()
   
-  amount = html_element(element, ".grants-list__grant-header--estimated-award-amounts") %>% html_text2()
+  amount = html_element(element, ".grants-list__grant-header--estimated-award-amounts") |> html_text2()
   
   # We need to return the values as a named list, with each column of the data frame
   # mapping onto the appropriate value.
@@ -95,10 +95,10 @@ while (has_next_page) {
   grant_elements = html_elements(res, ".grant-content__primary")
   
   grants = map_dfr(grant_elements, function (element) {
-    grant_title = html_element(element, "h3.entry-title a") %>% html_text2()
-    grant_url = html_element(element, "h3.entry-title a") %>% html_attr("href")
-    agency = html_element(element, ".grants-list__grant-header--grantmaking-agency dd") %>% html_text2()
-    amount = html_element(element, ".grants-list__grant-header--estimated-award-amounts dd") %>% html_text2()
+    grant_title = html_element(element, "h3.entry-title a") |> html_text2()
+    grant_url = html_element(element, "h3.entry-title a") |> html_attr("href")
+    agency = html_element(element, ".grants-list__grant-header--grantmaking-agency dd") |> html_text2()
+    amount = html_element(element, ".grants-list__grant-header--estimated-award-amounts dd") |> html_text2()
 
     return(list(
       "title"=grant_title,
@@ -149,8 +149,8 @@ get_description = function(url) {
   # the description. Unfortunately, there's not a unique class or ID we can use to
   # find this. Instead, we will use the :contains CSS selector to find columns that
   # contain the text "Description"
-  desc = html_elements(resp, ".wp-block-column:contains(Description)") %>%
-    first() %>%
+  desc = html_elements(resp, ".wp-block-column:contains(Description)") |>
+    first() |>
     html_text2()
   
   return(desc)
@@ -159,5 +159,5 @@ get_description = function(url) {
 # rowwise is similar to groupby, except that every row is treated as its own group
 # we are only retrieving the first 10 descriptions to avoid hammering the CA Grants
 # server with many spurious requests, but it would work for all the grants
-with_desc = rowwise(all_grants[1:10,], everything()) %>%
+with_desc = rowwise(all_grants[1:10,], everything()) |>
   mutate(description=get_description(url))
