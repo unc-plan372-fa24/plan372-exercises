@@ -1,0 +1,223 @@
+---
+title: Petroleum pricing
+---
+
+ In this script, we will read and perform some basic analysis of petroleum product
+pricing data from the Energy Information Administration.
+In our previous exercises, I provided the data already in CSV format, and in some
+cases I had done some cleaning of the data before sharing it with you. When you're
+working on your own projects, data will often be much less clean, with various
+idiosyncracies to deal with. While CSV is the de facto standard for data exchange
+in data science, many governments and businesses use Excel for creating and managing
+data.
+
+In this exercise, we will use US Energy Information Administration data on petroleum
+product prices to look at how prices have changed over time. This data is in Excel format,
+and we will have to write some special code to deal with the format of the data.
+
+First, we need to get the data. Since this exercise is about finding data, I have not
+provided the data for you. Instead, go to the Energy Information Administration's
+web site (eia.gov) and find the Spot Prices for Petroleum and Other Liquids page by clicking
+Sources and Uses, Petroleum & other liquids, then under the data tab find Prices, then
+spot prices. Download in Excel format by clicking "Download Series History", and save the
+Excel file. You'll need to reference the file from R, so I recommend saving it in the
+oil directory of your plan372-exercises directory. That way you can easily reference it
+using a relative path (relative to your R project) instead of a full path to where
+the file specifically is on your computer.
+
+Next, we need to load libraries. As always, we'll load the tidyverse library.
+We also need to load the readxl library to read in the Excel formatted file.
+This library is automatically installed when we load tidyverse, but we need to load
+it separately if we want to read Excel files.
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(ggthemes)
+```
+
+Next, we need to load our data. In the past we've used read_csv to do this, but this
+data is not in CSV format, so we'll use the read_excel function to do so. Depending on
+where you saved your data file, you may need to adjust the path here.
+
+```{r}
+data = read_excel(here::here("oil", "PET_PRI_SPT_S1_D.xls"))
+```
+
+Look at the data by using the `head` function.
+
+```{r}
+# answer
+head(data)
+```
+
+That doesn't really look like data. This is fairly common with Excel spreadsheets, as they
+can contain lots of things other than just a single table of data like a CSV. Open
+the file up in Excel to take a look at what's going on.
+
+The first page of the Excel spreadsheet is a table of contents, with the actual data
+in the other sheets. For this exercise, we'll compare the prices of conventional and
+RBOB gasoline. RBOB gasoline is a special, reformulated blend of gasoline designed to
+reduce smog, which is required in certain areas. First, we need to figure out which sheets
+these data are on, then we can read them using read_excel and specifying a sheet.
+
+First, read conventional gasoline. Update sheet to be correct if necessary.
+
+```{r}
+conv = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 2")
+```
+
+### Now take a look at that dataset.
+
+You could add a cell here and run `head(conv)`, but often you don't want to have a bunch of exploratory cells in you data analysis. You can also run `head(conv)` directly in the console at the bottom of the RStudio window, which will run the code but not save it as part of your Quarto file.
+
+That still doesn't look right. If we look in Excel, we see there are two rows of metadata
+before the column names in the Excel sheet. This is pretty common in Excel. We can skip those
+with the skip argument to read_excel(). read_csv also has a skip argument, if you ever need it.
+
+```{r}
+conv = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 2", skip=2)
+```
+
+### Rename the columns to be easier to work with. We'll call them ny_conventional and gulf_conventional.
+
+It is common for Excel files to have long, descriptive column names. This is very useful, but harder to work with in R. We will rename the columns to something shorter. This is tricky, as the existing column names in the table must exactly match those specified here; I recommend copying and pasting if doing this yourself in the future.
+
+```{r}
+conv = rename(
+  conv,
+  ny_conventional="New York Harbor Conventional Gasoline Regular Spot Price FOB (Dollars per Gallon)",
+  gulf_conventional="U.S. Gulf Coast Conventional Gasoline Regular Spot Price FOB (Dollars per Gallon)"
+)
+```
+
+### Read in the rbob sheet also. You should double check to see if the format is the same
+
+```{r}
+# answer
+rbob = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 3", skip=2)
+```
+
+### Rename the Los Angeles price column to la_rbob
+
+```{r}
+# answer
+rbob = rename(
+  rbob,
+  la_rbob="Los Angeles Reformulated RBOB Regular Gasoline Spot Price (Dollars per Gallon)"
+)
+```
+
+### Merge the data
+
+We want to get conventional and RBOB into the same data frame. We can do this by stacking them together, like we did in the ped/bike counters exercise. Before we can do that, though, we need to put the data into "long" format, with a column that indicates the type of fuel and column that indicates the date.
+
+```{r}
+conv_long = conv |>
+    pivot_longer(all_of(c("ny_conventional", "gulf_conventional")))
+
+rbob_long = rbob |>
+    pivot_longer(la_rbob)
+
+combined = bind_rows(conv_long, rbob_long)
+```
+
+
+### Exercise: create a monthly average by fuel type, and plot it
+
+Your data should have entries for June 1986, July 1986, etc.
+
+```{r}
+# answer
+combined$month_year = floor_date(combined$Date, unit="m")
+
+monthly = combined |>
+    group_by(name, month_year) |>
+    summarize(value=mean(value)) |>
+    ungroup()
+
+monthly |>
+    ggplot(aes(x=month_year, y=value, color=name)) +
+    geom_line() +
+    scale_color_colorblind()
+
+```
+
+Have they trended together? Which appears to be most expensive?
+
+## Fancier plotting
+
+For publication-quality plots, we need to change a few things:
+- The axis labels are ugly
+- The legend text is not very informative
+- It is hard to differentiate the three fuels as they are all very close to one another on the plot
+
+### Axis labels
+
+The `xlab` and `ylab` functions change the x (horizontal) and y (vertical) axis labels.
+
+```{r}
+monthly |>
+    ggplot(aes(x=month_year, y=value, color=name)) +
+    geom_line() +
+    scale_color_colorblind() +
+    xlab("Month") +
+    ylab("Price per gallon (dollars)")
+```
+
+The `labs` function changes other labels—for instance, we can change the legend label to say "Fuel type".
+
+```{r}
+monthly |>
+    ggplot(aes(x=month_year, y=value, color=name)) +
+    geom_line() +
+    scale_color_colorblind() +
+    xlab("Month") +
+    ylab("Price per gallon (dollars)") +
+    labs(color="Fuel type")
+```
+
+I find the easiest way to change legend item labels is to just recode the original data before calling `ggplot`.
+
+```{r}
+monthly |>
+    mutate(name=case_match(
+        name,
+        "ny_conventional" ~ "New York, conventional",
+        "gulf_conventional" ~ "Gulf Coast, conventional",
+        "la_rbob" ~ "Los Angeles, RBOB"
+    )) |>
+    ggplot(aes(x=month_year, y=value, color=name)) +
+    geom_line() +
+    scale_color_colorblind() +
+    xlab("Month") +
+    ylab("Price per gallon (dollars)") +
+    labs(color="Fuel type")
+```
+
+### Saving images
+
+While R plots are automatically embedded in Quarto documents, often it is desirable to save R plots to image files for incorporation into other documents (e.g. presentations, reports, etc.). The `ggsave` function supports this. Adding it after a `ggplot` call will save the most recent plot.
+
+The file type is detected automatically based on the file extension (the last few letters after the .). I recommend `.png` in most cases as it is optimized for images with sharp lines and large areas the same color. Using `.svg` will give a vector output (i.e. not converted to a picture, but a representation of the exact lines, points, etc. on the plot), but it is not compatible with as many other programs. I do _not_ recommend the commmon `.jpg` file format as it is optimized for photographs and struggles to clearly render sharp lines.
+
+After the file name, there are several other arguments to the `ggsave` function. 
+
+```{r}
+monthly |>
+    mutate(name=case_match(
+        name,
+        "ny_conventional" ~ "New York, conventional",
+        "gulf_conventional" ~ "Gulf Coast, conventional",
+        "la_rbob" ~ "Los Angeles, RBOB"
+    )) |>
+    ggplot(aes(x=month_year, y=value, color=name)) +
+    geom_line() +
+    scale_color_colorblind() +
+    xlab("Month") +
+    ylab("Price per gallon (dollars)") +
+    labs(color="Fuel type")
+
+ggsave("")
+```
