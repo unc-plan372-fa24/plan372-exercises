@@ -1,0 +1,80 @@
+---
+title: Chapel Hill flooding
+---
+
+Sometimes you may want to combine the best of both worlds: do some of your analysis in QGIS, then export to R for additional analysis (or vice-verse).
+
+We can export data from QGIS as CSV and analyze it using the same tools we've used in R in the past.
+
+As always, first, we need to load libraries.
+
+```{r}
+library(tidyverse)
+```
+
+Next, we read in our data file. You may need to adjust the path.
+
+```{r}
+data = read_csv("chapel_hill_flooding_fromqgis.csv")
+```
+
+```{r}
+data$PIN[duplicated(data$PIN)]
+```
+
+it's probably a good idea to go back to QGIS to see if these are simply duplicates,
+or something else.
+
+it looks like these aren't duplicates, but parcels that are split into multiple pieces e.g. by a road
+The permits dataset, though, has records for the entire parcel. We'll get an incorrect
+answer if we use this, because we'll be essentially duplicating the development that occurred
+for each part of a parcel. So we should group the parcels and sum up the areas, but not sum
+up the development costs, so we have one row per parcel that accurately reflects development
+
+```{r}
+parcels = group_by(data, PIN) |>
+  summarize(
+    Shapearea=sum(Shapearea),  # we want to sum up the areas of the parts of the parcel
+    parcel_permits_total_construction_cost=first(parcel_permits_total_construction_cost),
+
+    # if any part of the parcel is in the flood area, we want to call it a flood area
+    floodarea=any(floodarea==1)
+  )
+```
+
+Use the filter function to remove non-Chapel Hill parcels by filtering
+for non-NA construction cost. In this case, the parcel_permits data file contained
+records for all of Chapel Hill, even if parcels didn't have any permits pulled, and
+just had a zero for the constrction cost.
+
+If you were doing a similar analysis, you'd want to check this - you wouldn't
+want to accidentally exclude parcels that hadn't had any permits pulled.
+
+```{r}
+# answer
+parcels = filter(parcels, !is.na(parcel_permits_total_construction_cost))
+```
+
+Now, use group_by and summarize to compute development intensity inside and
+outside the flood zone. Think about whether you are computing development intensity
+per square foot, or per square foot per lot
+
+I am summing up total cost and total area by flood zone / non flood zone, and
+then computing intensity afterwards. If I just took a mean of the already-calculated
+development intensity, I would undercount large parcels, because they would contribute
+the same to the mean as small parcels, whereas in actuality development intensity large parcels 
+represents more development.
+
+```{r}
+# answer
+result = parcels |>
+    group_by(floodarea) |>
+    summarize(total_cost=sum(parcel_permits_total_construction_cost), total_area=sum(Shapearea)) |>
+    ungroup()
+
+result$intensity = result$total_cost / result$total_area
+result
+```
+
+
+
