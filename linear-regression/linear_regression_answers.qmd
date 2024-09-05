@@ -1,0 +1,507 @@
+---
+title: Linear regression
+---
+
+Linear regression is a tool for understanding relationships between multiple variables, and predicting
+outcomes.
+
+We will use data on home sales in Charlotte to build a model of home sales price.
+We have data on 500 single-family home sales in Mecklenburg County from 2010 to
+the present. This includes the sale price of the home as well as a number of
+attributes of the home collected by the tax assessor.
+
+First, we need to load libraries.
+```{r}
+library(tidyverse)
+library(ggthemes)
+```
+
+Next, we'll load our data
+
+```{r}
+data = read_csv(here::here("linear-regression", "data", "charlotte_home_sales.csv"))
+head(data)
+```
+
+## Exploratory analysis
+
+The columns of the data are
+- dte_dateof - date of sale
+- houseno, houseunit, stdir, stname, sttype, stsuffix - components of street address
+  (number, unit number, street direction, street name, street type, and street suffix)
+- amt_price - Sale price in dollars
+- heatedarea - area of the home that is heated (i.e. living area), square feet
+- yearbuilt - year the home was built
+- fullbaths - number of full baths
+- halfbaths - number of half baths
+- bedrooms - number of bedrooms
+- actype - type of air conditioning/cooling
+- vacantorim - VACant or IMProved (there is a building on the lot)
+- totalac - total acreage of the lot
+- siding - type of siding (wall coverage)
+- area - the part of the Charlotte metropolitan area where the home is located
+  (Public Use Microdata Area code)
+
+
+Before we start doing any regressions, it's always a good idea to get to know our data
+a bit first. Make a histogram of sale price:
+
+```{r}
+# answer
+ggplot(data, aes(x=amt_price)) +
+  geom_histogram(bins=50) 
+```
+
+Make a histogram of heated area
+
+```{r}
+# answer
+ggplot(data, aes(x=heatedarea)) +
+  geom_histogram(bins=50)
+```
+
+
+Now, we can start thinking about building our model. One variable that is likely
+to be associated with home prices is the size of the home (heatedarea). We can
+make a scatterplot of these variables before we start thinking about a model.
+
+```{r}
+ggplot(data, aes(x=heatedarea, y=amt_price)) +
+  geom_point(size=0.1)
+```
+
+It's hard to read because of the outliers (we'll return to this issue shortly)
+For now, we can just set the limits to look at the bulk of the data.
+```{r}
+ggplot(data, aes(x=heatedarea, y=amt_price)) +
+  geom_point(size=0.1) +
+  xlim(0, 5000) +
+  ylim(0, 2000000)
+```
+
+## Regression models with one variable
+
+It does look like there's a positive trend. We're ready to build our first
+model! We'll express price as a function of heated area In R, you use the lm()
+function to estimate a linear regression. The first argument is a _formula_,
+which expresses the mathematical equation you want to estimate. The dependent
+variable is on the left, followed by a ~, followed by the independent
+variable(s). We also specify the dataset we are using for estimation. We do
+not need to specify a constant/intercept. R will include that automatically.
+
+```{r}
+single_variable_model = lm(amt_price~heatedarea, data)
+
+# to see the results of our model, we can run summary()
+summary(single_variable_model)
+```
+
+The first section includes some information about the residuals - the
+difference between the predictions and the actual values in the data. The next
+section details the coefficients - what the estimate was, and how much random
+variation there might be in that estimate due to sampling error (we'll cover
+this in a moment). The last interesting statistic is the R-squared, which
+we'll discuss below.
+
+## Seeing our model visually
+
+Let's plot our regression line on top of our scatterplot. We can use
+geom_abline for this, which accepts an intercept and slope. The intercept is
+the coefficient for the constant. In a regression with only one variable, the
+coefficient for that variable is the slope of the line that predicts the
+outcome. Hint: e+05 is scientific notation - 1.5e+05 would be 1.5
+times 10 to the 5th, or 150,000.
+
+```{r}
+ggplot(data, aes(x=heatedarea, y=amt_price)) +
+  geom_point(size=0.1) +
+  geom_abline(intercept=-1.175e5, slope=206.2, color="red") +
+  xlim(0, 5000) +
+  ylim(0, 2000000)
+```
+
+## Dealing with outliers
+
+That line doesn't look like it goes quite through the middle of the data. If
+we remove the limits on the plot we can see why:
+
+```{r}
+ggplot(data, aes(x=heatedarea, y=amt_price)) +
+  geom_point(size=0.1) +
+  geom_abline(intercept=-98341, slope=196.4, color="red")
+```
+
+there are outliers well off to the right and top. Because regression is
+minimizing the sum of _squared_ residuals, outliers can have a very large
+influence. Even though there are not very many of them, they are far from the
+regression line. We can remove the outliers and run the model again. Whether
+or not to remove outliers is up to you and what makes sense for your analysis.
+However, you should avoid "cherry-picking" data - filtering the data until you
+get the results you want from your analysis.
+
+Exercise: filter the data to only homes with heated area less than 5,000
+square feet, and prices less than $2 million. Save the result in a new variable
+`no_outliers`. Run a model on this filtered dataset.
+
+```{r}
+# answer
+no_outliers = data |>
+    filter(heatedarea < 5000 & amt_price < 2000000)
+no_outlier_model = lm(amt_price~heatedarea, no_outliers)
+summary(no_outlier_model)
+```
+
+Make a similar plot.
+
+```{r}
+ggplot(no_outliers, aes(x=heatedarea, y=amt_price)) +
+  geom_point(size=0.1) +
+  geom_abline(intercept=-2254.106, slope=148.3, color="red")
+```
+
+Are the results different?
+
+
+## Multiple regression
+
+So far we've only included a single variable in the model - heated area. But
+with regression, we can include many variables. Then the coefficient for each
+independent variable will be how much change in the dependent variable is
+associated with a 1-unit change in the independent variable, holding
+everything else in the model constant.
+
+For example, these data were collected over the course of 10+ years. During
+that time, housing prices went up significantly. We'd expect homes that sold
+in 2010 to sell for less than homes that sold in 2020. We can add a variable
+for year of sale, but first we need to compute the year of sale.
+```{r}
+no_outliers = no_outliers |> mutate(year_of_sale=year(dte_dateof))
+
+year_built_model = lm(amt_price~heatedarea+year_of_sale, no_outliers)
+summary(year_built_model)
+```
+
+What is the effect of year of sale?
+
+When two variables are correlated, including them both in the model can do
+strange things. As an example, let's try adding number of bedrooms to our
+model
+
+```{r}
+bedrooms_model = lm(amt_price~heatedarea+year_of_sale+bedrooms, no_outliers)
+summary(bedrooms_model)
+```
+
+What is the relationship between an additional bedroom and price?
+Is it what you would expect?
+
+Exercise: Estimate the same model again, but without the heated area. Does the
+result change?
+```{r}
+# answer
+bedrooms_only_model = lm(amt_price~year_of_sale+bedrooms, no_outliers)
+summary(bedrooms_only_model)
+```
+
+Is the coefficient for bedrooms now what you would expect?
+
+What's going on? In the first model, we estimated the relationship between
+number of bedrooms and price holding square footage constant - so the value of
+an additional bedroom without increasing the total size of the home. The trend
+lately has been towards larger rooms, and adding a room without increasing the
+size of the home means smaller rooms, so it is reasonable to think that an
+additional bedroom in a home of the same size might not be particularly
+valuable. The model above shows a slightly negative coefficient, though it's
+not _statistically significant_ (we'll discuss that in a bit), so we can't be
+sure it wouldn't be positive if we had a different sample of 1500 homes.
+
+Here, we plot the relationship between heated area and price, with color
+indicating number of bedrooms. Note that the colors at the bottom and top of
+the point cloud are all mixed together, indicating that there isn't really a
+trend in price for different numbers of bedrooms with the same square footage.
+
+```{r}
+ggplot(no_outliers, aes(x=heatedarea, y=amt_price, color=as.factor(bedrooms))) +
+  geom_point() +
+  ylim(0, 1000000) +
+  scale_color_colorblind()
+```
+
+
+This is known as Simpson's Paradox - cases where adding a variable can change
+the sign of the coefficient of another variable. It is a specific case of the
+more general omitted variable bias and collinearity concepts. Omitted variable
+bias is the notion that whenever you add a variable to a model, it may change
+the coefficients for any other related variable. In general, this means that
+you can only interpret the coefficients of a regression in relation to what
+else is included in the model. For instance, you would likely find that the
+number of TVs a household owns is highly predictive of the price of their
+home. But this is not because more TVs cause households to buy more expensive
+homes - rather, it is likely that higher incomes lead to buying more expensive
+homes _and_ to buying more TVs. Adding income into the model would likely make
+the effect of TVs go away - because then the model would be asking the
+question of how an additional TV is related to home value, holding income
+constant - and it's probably not very related.
+
+In extreme cases, adding additional variables to the model that are correlated
+with each other may result in counterintuitive, statistically-insignificant
+results. This is know as a collinearity or multicollinearity problem, and is
+something you should look into if you are experiencing unexpected results in a
+regression.
+
+## Categorical variables
+
+So far we've only included continuous, numerical variables in the model. But
+we know other things likely affect home prices as well, for instance what the
+home looks like from the street. The data contain a variable "siding" that
+says what the siding (wall covering) on the outside of the home is. People may
+pay more for certain types of siding if they are more durable, more
+attractive, etc. But it's not a number, so we can't just put it in the model
+with a coefficient.
+
+The most common way to put a categorical variable into a regression model is
+to use "dummy variables" There will be one variable for each category, that is
+one if the home is in that category, and zero otherwise. This allows the model
+to estimate a coefficient for each of the categories—so for instance we will
+have the amount of money brick siding is associated with, or vinyl siding,
+etc. You have to leave one category out; that is the base category, and
+everything else is relative to that. (If we didn't, there wouldn't be a unique
+set of coefficients for the computer to estimate. You could get exactly the
+same prediction from many models, by increasing the coefficient for the
+constant and decreasing the coefficient for all of the dummy variables.)
+
+We can create dummy variables in R by including non-numeric values in the
+regression. R will automatically create one variable for each category. If you
+wanted to create dummy variables for a numeric column (e.g., if siding types
+were coded as 1, 2, 3, etc.), you would convert the column to a factor using
+as.factor() and then include that converted column in your model.
+
+```{r}
+siding_model = lm(amt_price~heatedarea+year_of_sale+siding, no_outliers)
+summary(siding_model)
+```
+
+What category did R choose as the base category?
+
+How much more valuable is Hardiplank than Vinyl?
+
+It is often said that the three most important aspects of a home are location,
+location, and location. Similar homes in different neighborhoods may sell for
+very different prices. There is an area variable in the file, which represents
+different parts of the Charlotte metro area. Exercise: add this as a
+categorical variable.
+```{r}
+# answer
+area_model = lm(amt_price~heatedarea+year_of_sale+siding+area, no_outliers)
+summary(area_model)
+```
+
+How much do the different areas differ in price?
+
+You may also see coefficients for dummy variables for areas or groups referred
+to as "fixed effects".
+
+## Evaluating the quality of the model
+
+Let's look at our model with heated area, year of sale, and siding type The
+first thing to look at is the R-squared. This tells us how much of the
+variation in price is explained by the variables we're using - in this case,
+63.4% of the variation is explained. The Adjusted R2 adjusts the R2 based on
+how many independent variables you are using - if we used enough independent
+variables, we could fit the data really well, but not be able to predict well.
+Adjusted R2 reduces the R2 a bit based on how many variables are used.
+
+Next is the statistical significance of the coefficients. Every coefficient is
+estimated with some error, because we're using a finite dataset - we only have
+1,500 observations, and far more properties have sold recently, and even more
+could sell in the future. The standard error quantifies how much variation
+there might be if we ran the regression on a different sample.
+
+## Hypothesis tests of regression coefficients
+
+We found a coefficient of 147 for heated area, and a standard error of 4.192.
+We want to know whether this value is _statistically significant_, i.e. far
+enough from zero that we can be fairly confident we didn't find it just due to
+the particular sample of properties we used. To do this, we use a hypothesis
+test. If you're familiar with hypothesis tests of means, this works the same
+way, but if you're not we'll go over it from the beginning.
+
+With a hypothesis test, you have a null hypothesis and an alternate
+hypothesis. The null hypothesis in regression is that the true coefficient
+value is 0 - i.e. there is no relationship between heated area and price. We
+test how likely we would be to find a relationship this large, given our data
+and sample size, if the null hypothesis were true. If it is sufficiently
+unlikely, we conclude that the relationship is likely real, and not due to
+sampling error.
+
+The way we test this is by dividing the coefficient by the standard error -
+this is the number of standard errors away from zero the coefficient is. This
+is known as a t-value. Then, we use a distribution to determine the
+probability of of getting a result this many standard deviations from 0 if the
+true relationship were zero.
+
+This requires assuming a distribution for the coefficients. A distribution is
+just a graph that indicates what the probability of observing particular
+t-values is, if the null hypothesis were true. The most common distribution is
+the normal distribution or "bell curve", which I plot below.
+
+```{r}
+t = seq(-4, 4, 0.05)
+y = dnorm(t)
+plot_data = tibble(t=t, y=y)
+ggplot(plot_data, aes(x=t, y=y)) +
+  geom_line()
+```
+
+The higher the line is, the more likely it is that we would get a coefficient
+of that t-value if the null hypothesis were true.
+
+While the normal distribution is common throughout statistics, in a
+regression, the distribution we use is actually the t-distribution. This
+distribution accounts for possible inaccuracy in the estimation of the
+standard deviation. This difference only really matters when the sample size
+of your regression is very small; once the number of observations gets to a a
+few dozen, the t and normal distributions are almost identical.
+
+R computes the hypothesis tests for your linear regression automatically, but
+we'll work through computing one by hand, just for experience. This code
+computes the t-value
+```{r}
+tval = 147 / 4.192
+```
+
+This computes the probability of getting a value larger than 147 if the
+null hypothesis is true. This is using a Student's t distribution; hypothesis
+testing in a linear regression uses this distribution, like a comparison of
+means would if you've taken intro stats. When your sample size is large
+(hundreds or thousands more observations than independent variables) the t
+distribution is almost identical to the normal distribution.
+
+```{r}
+prob_larger = 1 - pt(tval, nrow(no_outliers) - 2)
+```
+
+This is the probability of getting a value larger than the one we got, if the
+null hypothesis were true. But that means we are implicitly assuming that the
+coefficient will always be positive. What we really want is to know the
+probability of getting a coefficient _this far from zero_ - so we also want to
+add the probability of getting a coefficient less than -147 with this standard
+error. Since the t and normal distributions are symmetrical, we can just
+multiply the value we got above by 2. This is called a "two-tailed test" in
+statistics.
+```{r}
+prob_larger = prob_larger * 2
+prob_larger
+```
+
+The probability is zero. Of course, it isn't exactly zero (anything could
+happen randomly), but it's close enough to zero that the computer can't tell
+the difference. We can be pretty certain that the null hypothesis that the
+coefficient is zero is not true. Generally, probabilities below 0.05 are
+considered "statistically significant," but there is some debate about this.
+This probability is known as a p-value
+
+To reiterate what is meant by this probability: this is the probability of
+getting a coefficient this extreme if the null hypothesis were true. It is
+_not_ the probability that the null hypothesis is true, or the probability
+that your model is correct.
+
+You generally won't do statistical tests manually like this. In the model
+output, R prints these tests automatically. The t-values are in the third
+column, and the p-values in the fourth. Heated area is presented as <2e-16 -
+which indicates it is smaller than the smallest value the computer can
+represent.
+```{r}
+summary(siding_model)
+```
+
+Are there any variables that are not statistically significant in this model?
+What about in your model that included area?
+
+## Predicting from a linear regression
+
+A linear regression is just estimating an
+equation that predicts the dependent variable based on the independent
+variables. We can write out the equation. For instance, suppose we wanted to
+estimate the price of a 2000 square foot home sold in 2021, with Hardiplank
+siding.
+```{r}
+-4.309e7 + 1.437e2 * 2000 + 2.134e4 * 2021 + 9.881e4
+```
+
+Exercise: use your model that includes area to predict the price of a 2000
+square foot home sold in 2021 with Masonite siding in area 03103.
+
+```{r}
+# answer
+-4.320e7 + 1.468e2 * 2000 + 2.144e4 * 2021 + 4.551e4 - 1.586e5
+```
+
+Normally, you wouldn't make predictions manually like this. Instead, you would
+create a new dataset that had all of your independent variables, and then
+apply the predict() function to it. For instance, here I'll make a dataset of
+several different types of homes, and predict the sales prices of all of them.
+A developer might use a model like this to forecast profits from a new
+development---probably a bit more complex model with more home features. Here
+we create a table with the candidate homes. Each line is a column in the
+table. Lines where there is only one item will have that item repreated for
+every row of the table. We use the tribble function, which lets us specify a
+table directly in R code.
+
+```{r}
+candidate_homes = tribble(
+    ~heatedarea, ~year_of_sale, ~siding,
+    1200,        2021,          "HARDIPLANK",
+    1500,        2021,          "HARDIPLANK",
+    2000,        2021,          "HARDIPLANK",
+    1200,        2021,          "FACE BRICK",
+    1500,        2021,          "FACE BRICK",
+    2000,        2021,          "FACE BRICK",
+)
+```
+
+now, we can use predict() to create a new column in candidate_homes with the
+forecasted price. It should be close to what we found above (a little different
+because we used rounded coefficients above but predict() uses the original,
+un-rounded coefficients).
+
+```{r}
+candidate_homes$forecast_price = predict(siding_model, candidate_homes)
+candidate_homes
+```
+
+Exercise: Estimate the price of a 2000 square foot home sold in 2021 with
+Hardiplank siding in areas 03103, 03105, or 03108 (note: you will need to put
+the area codes in quotes). A developer might use a result like this to decide
+which of several sites would be most profitable to build on. You will need to use the
+model that included area for your predictions to be meaningful.
+
+```{r}
+# answer
+candidate_sites = tribble(
+    ~heatedarea, ~year_of_sale, ~siding,      ~area,
+    2000,        2021,          "HARDIPLANK", "03103",
+    2000,        2021,          "HARDIPLANK", "03105",
+    2000,        2021,          "HARDIPLANK", "03108",
+)
+
+candidate_sites$forecast_price = predict(area_model, candidate_sites)
+
+candidate_sites
+```
+
+While prediction is often seen as a primary function of linear regression, it
+is actually not that common in urban analytics. People use linear models for
+interpretation more often - to interpret the coefficients and see what the
+relationships between different variables are, holding other things constant.
+
+These models had quite high predictive power (R2), which is common in models
+of home prices. In models of other phenomena (especially behavioral
+phenomena), much lower R2 is common. This may represent an issue for
+prediction, but does not necessarily represent an issue for interpretation.
+It's only an issue for interpretation if there are other variables left out
+that would affect the coefficients for the variables included.
+
+Regression has a lot more pieces than we discussed here. I recommend the books
+An Introduction to Statistical Learning with Applications in R, and The
+Effect, if you want to learn more. Both are available online as free ebooks.
