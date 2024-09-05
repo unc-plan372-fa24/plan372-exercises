@@ -1,4 +1,6 @@
-# PLAN 372 Exercise 2: Data cleaning
+---
+title: PLAN 372 Exercise 2 - Data cleaning
+---
 
 
 In this exercise, we'll be working with data from automated bicycle counters in North Carolina,
@@ -18,7 +20,7 @@ library(ggthemes)
 
 ## Read the data, and look at the first few rows
 ```{r}
-data = read_csv("ped_bike_counters/data/ncnmvdp.csv")
+data = read_csv(here::here("ped_bike_counters", "data", "ncnmvdp.csv"))
 head(data)
 ```
 
