@@ -1,0 +1,218 @@
+---
+title: Working with Census data in R
+---
+
+Often, we will want to retrieve Census data for use in projects. The Census website
+has various download interfaces, but they can be difficult to use. The tidycensus
+package provides an easier-to-use R alternative.
+
+## First, load libraries, as always
+
+In addition to libraries we've used in the past, we are now loading the `tidycensus` library for working with—you guessed it—Census data.
+
+
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(sf)
+
+```
+
+Before we start, we need to install our Census API key that we got via email.
+You only need to do this once, and you shouldn't put this function call in a code
+file, for security reasons. Using the console, run
+
+  census_api_key("YOUR_API_KEY", install=T)
+
+You may need to restart R for the API key to be available (Session -> Restart R)
+
+Full usage of tidycensus is described here: https://walker-data.com/tidycensus/articles/basic-usage.html
+
+tidycensus has two main functions, get_decennial which retrieves decennial census data,
+and get_acs which retrieves one or five year ACS data.
+Both of these functions require several parameters: the area of the country to retrieve,
+the level of spatial aggregation, the year, and the variables. get_acs additionally
+requires specifying 1 or 5-year data (5-year is usually what you want as it has less
+sampling error and more variables).
+
+First, let's retrieve some information from the 2019 5-year ACS.
+To find our data, we first need to find the variable codes for the variables we want.
+running load_variables(year, dataset) will return a table of all the variables for that
+dataset. acs1 and acs5 correspond to 1 and 5 years ACS; pl, sf1, sf2 represent different
+subsections of the decennial census. The names of the 5 year ACS refer to the final year
+of data, so the 2019 five-year ACS covers 2015-2019.
+
+
+```{r}
+acs_vars = load_variables(2019, "acs5")
+
+```
+
+This list of variables is huge, and viewing it in RStudio is a pain. I usually
+save it to a file and view it in Excel.
+
+
+```{r}
+write_csv(acs_vars, "acsvars.csv")
+
+```
+
+## Retrieve ACS data on means of transportation to work by North Carolina county
+
+
+```{r}
+commute = get_acs(
+  geography="county",  # could be tract, block group, etc.
+  variables=c(
+    "total_mode"="B08301_001",
+    "drove_alone"="B08301_003",
+    "transit"="B08301_010",
+    "taxi"="B08301_016",
+    "motorcycle"="B08301_017",
+    "bicycle"="B08301_018",
+    "walk"="B08301_019",
+    "other"="B08301_020",
+    "wfh"="B08301_021"
+  ),
+  year=2019,
+  state="NC",
+  survey="acs5",
+  output="wide"
+)
+
+head(commute)
+
+```
+
+All of the columns have both E and M values. These are the Estimates and Margins
+of error, respectively. Unlike the decennial census, the ACS is conducted with a
+sample of the population, which means the result is an estimate with some margin of
+error due to random sampling error. A range from the estimate minus the standard
+error to the estimate plus the standard error represents a 90% confidence interval—
+that is, under the assumptions made by Census Bureau statisticians, if the ACS were
+repeated with the entire population, there is a 90% probability the result would be
+within this interval. Five-year ACS data represents five years of the survey put
+together; this results in a larger sample size and thus smaller margins of error.
+The Census Bureau is also able to publish more detailed information without endangering
+respondent privacy since the sample size is larger.
+
+### Exercise: also retrieve travel time to work greater than 60 minutes.
+
+
+```{r}
+# answer:
+
+```
+
+## Mapping Census data
+
+The data we retrieved from the Census doesn't have any spatial information. If we
+want to map it or do any spatial analysis, we need to join it with spatial information.
+There are two ways to do this. The simplest is to just tell tidycensus we want it to retrieve
+geometry (shape/location) data as well, by setting geometry = T in our tidycensus function
+call.
+
+
+```{r}
+commute = get_acs(
+  geography="county",  # could be tract, block group, etc.
+  variables=c(
+    "total_mode"="B08301_001",
+    "drove_alone"="B08301_003",
+    "transit"="B08301_010",
+    "taxi"="B08301_016",
+    "motorcycle"="B08301_017",
+    "bicycle"="B08301_018",
+    "walk"="B08301_019",
+    "other"="B08301_020",
+    "wfh"="B08301_021",
+    "total_ttime"="B08303_001",
+    "ttime_60_89"="B08303_012",
+    "ttime_90plus"="B08303_013"
+  ),
+  year=2019,
+  state="NC",
+  survey="acs5",
+  output="wide",
+  geometry=T
+)
+
+head(commute)
+
+```
+
+tidycensus will always return data in the geographic coordinates (latitute/longitude).
+For mapping or analysis, we'll want to convert these to a projected coordinate system.
+
+### Exercise: reproject the data to NC State Plane
+
+NC State Plane is EPSG code 32119.
+
+
+```{r}
+commute = st_transform(commute, 32119)
+
+```
+
+We can then easily map this data, just like we did with the libraries data. We'll
+plot the percentage of people who usually work from home.
+Here, since we're only mapping one dataset, I've put the dataset and aesthetic
+information in the ggplot function.
+I am calculating the percentage right in the aesthetic here. You could also calculate
+it before plotting and store it in a variable.
+
+
+```{r}
+ggplot(commute, aes(fill=wfhE / total_modeE * 100)) +
+  geom_sf() +
+  scale_fill_fermenter(palette="Blues", n.breaks=5)
+
+```
+
+It's (unfortunately) fairly unusual for researchers to use the margin of error information, but it's a good
+idea to at least look at it. Here, I plot the margin of error for working from home as a
+proportion of the total level of working from home.
+
+
+```{r}
+ggplot(commute, aes(fill=wfhM / wfhE)) +
+  geom_sf() +
+  # I'm adding direction=1 so darker red is a higher margin of error (reversing the normal
+  # order of the color palette)
+  scale_fill_fermenter(palette="Reds", n.breaks=5, direction=1) +
+  # the legend label was ugly in the previous map. We can add labs (labels)
+  # to the map to tell ggplot how to label different aesthetics. Here, we label
+  # fill. You can label anything you put in the aes() function. \n indicates a line break.
+  labs(fill="WFH margin of error\n(proportion of estimate)") +
+  # I'm also cleaning up the look of the map a bit, by removing the graticule (gridlines),
+  # and the latitude-longitude markings, and giving the map a white background and black
+  # neatline (border)
+  theme(
+    panel.grid=element_blank(), # remove gridlines
+    axis.text = element_blank(), # remove latitude-longitude labels
+    axis.ticks = element_blank(), # remove tickmarks on axes
+    panel.background = element_rect(color="black", fill=NA) # make background white with black border
+  )
+
+```
+
+This explains the high levels of working from home in Hyde County - the margin of 
+error is very high.
+
+### Exercise: plot the proportion of people who commute over 60 minutes by county in North Carolina.
+
+Label your legend and format your map as you like.
+
+
+```{r}
+# answer
+
+```
+
+### Exercise: plot the percentage of 18-24 year olds by Census tract in Orange, Durham, and Wake counties.
+
+
+```{r}
+# answer:
+
+```
