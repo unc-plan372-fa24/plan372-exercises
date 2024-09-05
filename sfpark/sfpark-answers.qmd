@@ -138,7 +138,8 @@ _groups_ the data by garage, and then takes the mean number of entries in each g
 ```{r}
 data |>
   group_by(facility) |>
-  summarize(mean_entries=mean(entries))
+  summarize(mean_entries=mean(entries)) |>
+  ungroup()
 ```
 
 But this could be misleading. Does each row represent a single day at a single garage? What are we actually computing the mean of above?
@@ -165,7 +166,8 @@ head(total_entries)
 ```{r}
 total_entries |>
   group_by(facility) |>
-  summarize(entries=mean(entries), exists=mean(exits))
+  summarize(entries=mean(entries), exits=mean(exits)) |>
+  ungroup()
 ```
 
 ### Filtering data
@@ -183,11 +185,13 @@ civic_center_data = data |> filter(district == "Civic Center")
 ```{r}
 civic_center_total_entries = civic_center_data |>
   group_by(facility, date) |>
-  summarize(entries=sum(entries), exits=sum(exits))
+  summarize(entries=sum(entries), exits=sum(exits)) |>
+  ungroup()
 
 civic_center_total_entries |>
   group_by(facility) |>
-  summarize(entries=mean(entries), exits=mean(exits)) 
+  summarize(entries=mean(entries), exits=mean(exits)) |>
+  ungroup()
 ```
 
 ### Repeat the process, looking only at garages in the Mission
@@ -249,7 +253,7 @@ total_entries$year = year(total_entries$date)
 ```
 
 ```{r}
-# make sure it worked (note: any text after a $ sign within R code is ignored by R; this is called a comment)
+# make sure it worked (note: any text after a # sign within R code is ignored by R; this is called a comment)
 unique(total_entries$year)
 ```
 
@@ -473,7 +477,10 @@ The data include several usage types - monthly passes, transient users, etc.
 The data include several usage types - monthly passes, transient users, etc.
 Exercise: first, extract all of the unique values of the usage_type column to
 see what the possibilities are.
+
+```{r}
 unique(data$usage_type)
+```
 
 How many entries are from each of the usage types? What usage type is most common?
 

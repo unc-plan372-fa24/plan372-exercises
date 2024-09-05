@@ -128,7 +128,8 @@ _groups_ the data by garage, and then takes the mean number of entries in each g
 ```{r}
 data |>
   group_by(facility) |>
-  summarize(mean_entries=mean(entries))
+  summarize(mean_entries=mean(entries)) |>
+  ungroup()
 ```
 
 But this could be misleading. Does each row represent a single day at a single garage? What are we actually computing the mean of above?
@@ -213,7 +214,7 @@ total_entries$year = year(total_entries$date)
 ```
 
 ```{r}
-# make sure it worked (note: any text after a $ sign within R code is ignored by R; this is called a comment)
+# make sure it worked (note: any text after a # sign within R code is ignored by R; this is called a comment)
 unique(total_entries$year)
 ```
 
