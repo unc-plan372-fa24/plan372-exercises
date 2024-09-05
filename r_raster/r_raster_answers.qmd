@@ -1,0 +1,147 @@
+---
+title: Raster manipulation with R
+---
+
+We will repeat our Houston development and flooding example using R.
+
+We will be using the terra package to handle both raster and vector data.
+
+```{r}
+library(tidyverse)
+library(terra)
+```
+
+First, we load our raster land use datasets.
+
+```{r}
+houston_2008 = rast(here::here("r_raster", "houston_2008.tif"))
+houston_2019 = rast(here::here("r_raster", "houston_2019.tif"))
+```
+
+Next, we can map them. terra is not compatible with ggplot, so we use the plot() function built into R
+
+```{r}
+plot(houston_2008)
+plot(houston_2019)
+```
+
+Creating a new raster layer through raster algebra just uses the normal operators
+we've seen for scalar values
+
+So we can create a houston change layer just like we did before
+
+```{r}
+houston_change = (houston_2019 == 22 | houston_2019 == 23 | houston_2019 == 24) & 
+  (houston_2008 != 22 & houston_2008 != 23 & houston_2008 != 24)
+
+plot(houston_change)
+```
+
+Now, we can summarize by city.
+
+First, we need to read the shapefile. This is different from how we read shapefiles
+before in R, because terra has its own mechanism for reading and manipulating vector
+data that is separate from the sf library we've used in the past.
+
+```{r}
+places = vect(here::here("r_raster", "texas_census_places.shp"))
+```
+
+We need to project the data to match the raster. This is quite easy in terra -
+by passing the raster itself as the second argument to project, project will
+make the projection match that raster.
+
+```{r}
+places = project(places, houston_change)
+```
+
+I'm not going to recommend plotting this - it is very slow
+
+The extract function is the equivalent of zonal statistics. There
+is also an unrelated extract function in tidyverse, so we need to specify to use
+the one from terra. We use na.rm so that areas off the map, in the water, etc. are not
+treated as NAs. We sum up the number of cells where change is `true` by city; when used in
+arithmetic operations, `true` is treated as equivalent to 1, so summing gives us the number of cells.
+
+```{r}
+bycity = terra::extract(houston_change, places, sum, na.rm=T)
+head(bycity)
+```
+
+bycity returns a table with two columns - an ID which is the index into the vector
+and a value. We can put this into the places dataset as a new column. The column is still called
+NLCD Land Cover Class because that is what the raster all of this was derived from was called, and
+we never renamed it. Because it has spaces in the column name, we have to use a slightly different,
+quoted syntax to access it.
+
+```{r}
+places[bycity$ID, "new_development"] = bycity[,"NLCD Land Cover Class"]
+```
+
+We can convert places into a tibble (table) and sort by new development descending
+to get the city with the most development
+
+```{r}
+places |> as_tibble() |> arrange(-new_development) |> select(NAME, new_development)
+```
+
+## Bring in the inundation layer.
+### Excercise: read and plot the inundation layer
+
+```{r}
+# answer
+inundation = rast(here::here("r_raster", "houston_inundation.tif"))
+
+plot(inundation)
+```
+
+As we saw in QGIS, the inundation layer does not line up perfectly with the
+change layer. We can see that by printing them out. Note that the coordinate
+reference system, extent, and resolution differ.
+
+```{r}
+inundation
+```
+
+```{r}
+houston_change
+```
+
+The equivalent of the QGIS align_rasters operation is the project function. We
+previously used it for vector data, but it can be used for raster data as well. This may take
+a few minutes.
+```{r}
+inundation = project(inundation, houston_change)
+```
+
+### check the coordinate reference system again, confirm they match
+
+```{r}
+# answer
+inundation
+```
+
+```{r}
+# answer
+houston_change
+```
+
+### exercise: compute the development inundation areas by city
+
+First, map areas that have new development and are likely to be inundated.
+
+```{r}
+# answer
+inundation_development = houston_change & !is.na(inundation) & inundation >= 1 & inundation <= 21
+plot(inundation_development)
+```
+
+Now, calculate what cities have had the most new development in flood zones.
+
+```{r}
+# answer
+inundation_dev_bycity = terra::extract(inundation_development, places, sum, na.rm=T)
+places[bycity$ID, "inundation_new_development"] = inundation_dev_bycity[,"NLCD Land Cover Class"]
+places |> as_tibble() |> arrange(-inundation_new_development) |> select(NAME, inundation_new_development)
+```
+

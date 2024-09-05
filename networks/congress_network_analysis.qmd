@@ -1,0 +1,329 @@
+---
+title: Congress network analysis
+---
+
+In this exercise we will use graphs in R and look at some graph summary metrics
+to better understand collaboration networks in the US House. We have data from the
+117th Congress (the current congress) on cosponsorship of bills, and we will use
+this data to define a graph or network where representatives are the nodes and
+cosponsorship of bills are the edges.
+
+The dataset we have lists the sponsor and cosponsor(s) of every bill introduced in the
+117th House where this data is available from the Government Printing Office. We will
+create a cosponsorship network where we create an edge between every cosponsor and
+the sponsor of that bill (we are not creating links between cosponsors of the same bill,
+as they may not actually have worked together). We are only including original cosponsors
+of the bill, not ones that signed on later.
+
+First, as always, we load libraries. We are using tidyverse and a graph
+manipulation library (igraph) that we haven't used yet.
+
+
+```{r}
+library(tidyverse)
+library(igraph)
+
+```
+
+Next, we read the data.
+
+
+```{r}
+data = read_csv(here::here("networks", "sponsors.csv"))
+head(data)
+
+```
+
+To turn this into a graph, we need to format it into a data frame that has columns
+for the start and end of every edge, but we don't want to have duplicate edges.
+First, we need to modify the data frame to only include a single record for each sponsor/cosponsor
+pair. This is a little bit tricky because we are using an undirected graph - we don't
+want duplicate records for the same two representatives when one was a sponsor and
+the other was a cosponsor, and vice-versa. To do this, we create a new data frame
+with sponsor1 and sponsor2 columns, and just put whoever comes earlier in alphabetical
+order in the sponsor1 column.
+
+
+```{r}
+sponsors = mutate(data,
+                  sponsor1=if_else(sponsor < cosponsor, sponsor, cosponsor),
+                  sponsor2=if_else(sponsor < cosponsor, cosponsor, sponsor)
+                  ) |> select(-c(sponsor, cosponsor))
+head(sponsors)
+
+```
+
+Now we just need to create a version of the data with a single entry for each
+sponsor pair.
+
+
+```{r}
+sponsor_pairs = sponsors |> group_by(sponsor1, sponsor2) |> summarize() |> ungroup()
+
+```
+
+Finally, we can create the graph.
+
+
+```{r}
+graph = graph_from_data_frame(sponsor_pairs, directed=F)
+
+```
+
+## Shortest paths
+
+Just like we did with road networks, we can compute shortest paths in the Congress network.
+Representative Ralph Norman [R-SC] is considered the most conservative house member, and
+Barbara Lee [D-CA] is the most liberal
+https://www.govtrack.us/congress/members/report-cards/2020/house/ideology
+Let's compute the shortest path between them
+
+
+```{r}
+shortest_paths(graph, "Rep. Lee, Barbara [D-CA]", "Rep. Norman, Ralph [R-SC]")
+
+```
+
+That's a bit surprising - I would not have expected to only need one intermediary
+(Rep. Andy Biggs [R-AZ]) to get from the most liberal to most conservative member of
+the House. But it's true; we can look at the data to confirm.
+
+First, find bills that were sponsored by Lee and cosponsored by Biggs, or vice versa
+Biggs will always be sponsor1 since his name is first alphabetically
+
+
+```{r}
+# answer
+
+```
+
+Lee introduced HR 256 and Biggs cosponsored, which was a repeal of the 2002 Congressional
+authorization of use of force in Iraq (https://www.congress.gov/bill/117th-congress/house-bill/256/cosponsors).
+
+Biggs will also appear first in the bill cosponsored with Norman
+
+
+```{r}
+# answer
+
+```
+
+These representatives have cosponsored many bills, perhaps less surprising since
+they are both Republicans, and Biggs is fairly conservative.
+
+That said, it's still somewhat surprising that the most conservative and most liberal members
+of Congress are so close together in cosponsorship space. Maybe this is just a fluke because
+Lee sponsored a popular bill? Let's try with two other very liberal and conservative members,
+Alexandria Ocasio-Cortez [D-NY] and Madison Cawthorn [R-NC]. Make sure you spell them exactly the way
+they are in the data (starting with Rep. and then with last name first, and finally with party and state
+in square brackets).
+
+
+```{r}
+# answer
+
+```
+
+No, this doesn't appear to be a fluke. We can use some graph-level metrics to determine how prevalent
+this is. One such metric is the mean distance - how long is the average path between any
+two representatives?
+
+
+```{r}
+mean_distance(graph)
+
+```
+
+That is pretty short.
+
+It's worth checking how many graph "components" there are - a component is a
+disconnected part of the graph with no paths to the other representatives. If there
+is only one component, then all nodes in the graph are directly or indirectly connected to
+all others. If there are many compomnents, the mean distance could be artificially low
+because it's not including distances between representatives in different components.
+
+
+```{r}
+count_components(graph)
+
+```
+
+There is only one component; every representative is connected to every other representative.
+
+We can compute all of the distances also, for all pairs.
+
+
+```{r}
+dists = distances(graph)
+
+```
+
+What is longest distance?
+
+
+```{r}
+max(dists)
+
+```
+
+What is the distribution of distances?
+
+The table function just tabulates the total number of observations for each value.
+
+
+```{r}
+table(dists)
+
+```
+
+let's find the pairs with the longest distance between them - you could consider
+these representatives the "most dissimilar."
+The "which" function will find the indices where the expression is true, and
+the arr.ind tells it to return original array/matrix indices.
+
+
+```{r}
+which(dists == 4, arr.ind=T)
+
+```
+
+Another measure of connectedness is the edge density, which is simply a ratio of
+how many connections there are in the graph compared to how many there could be.
+
+This is pretty easy to calculate
+
+
+```{r}
+total_edges = length(E(graph))
+total_nodes = length(V(graph))
+
+# How many possible edges are there in the graph?
+possible_edges = total_nodes * (total_nodes - 1) / 2
+
+# now we can calculate edge density
+total_edges / possible_edges
+
+```
+
+igraph has a built in function for edge density as well, which you should use (it's easier and less error prone to use pre-written functions than write your own).
+
+By default, this function assumes that "loop edges" from a node to itself don't exist,
+which they don't in this graph, but if you did have loop edges you would need to
+specify loop=T to correctly calculate the denominator for this metric.
+
+
+```{r}
+edge_density(graph)
+
+```
+
+## Centrality metrics
+
+### Degree centrality
+
+There are a bunch of different types of centrality metrics, all of which aim to
+measure how central a given node (or edge, but we won't look at that here) is
+to the graph overall. The simplest is "degree centrality", which is just the "degree"
+or number of edges connected to a node. Does the degree centrality suggest any reason
+why Mike Carey and Cedric Richmond were so far apart?
+
+
+```{r}
+degree(graph) |> sort()
+
+```
+
+### Closeness centrality
+
+More complex types of centrality include closeness centrality, which is the inverse
+of the total distance from a node to all others. So higher closeness centrality indicates
+you can reach more representatives with fewer hops. Closeness centrality is often
+normalized by multiplying by the number of nodes - 1 (https://en.wikipedia.org/wiki/Closeness_centrality)
+so it represents the inverse of the average distance rather than the sum.
+
+
+```{r}
+closeness(graph, normalize=T) |> sort()
+
+```
+
+### Betweenness centrality
+
+Another type of centrality metric is betweenness centrality - this measures how
+often a representative is on the shortest path between all pairs of other representativess.
+It could be treated as a measure of the power a representative has to connect others,
+though treating it as an "importance" can be tricky. People often assume that representatives
+with high betweeness centrality are very important to the network and if removed would increase
+the distance significantly, but this is not necessarily the case as betweenness centrality
+doesn't mean there is not another representative that could play a similar role.
+
+
+```{r}
+betweenness(graph) |> sort()
+
+```
+
+The final metric of centrality we'll consider is eigenvector centrality. The
+centrality of each node is a scaled sum of the centralities of all the nodes it's
+connected to, so a representative that is connected to other representatives that are highly
+connected scores more highly than a representative that is connected to the same number of
+less connected representatives. As it happens, this is also the eigenvector of the adjacency
+matrix (i.e. a square matrix with the nodes as rows and columns and a 1 if there is an edge between
+the nodes referenced by the rows and columns). This is roughly the algorithm used by
+Google to rank web pages, or at least it was when Google first started.
+
+Unlike other centrality metrics, the eigen_centrality function returns a list. We can
+get the vector of centralities with $vector
+
+
+```{r}
+eigen_centrality(graph)$vector |> sort()
+
+```
+
+We can put all of the centrality metrics together into a single table.
+
+
+```{r}
+centralities = tibble(name=names(degree(graph)), degree=degree(graph), betweenness=betweenness(graph), closeness=closeness(graph), eigen=eigen_centrality(graph)$vector)
+select(centralities, -name) |> cor()
+centralities |> arrange(closeness) |> View()
+
+```
+
+Do the different centrality metrics tell similar stories? If they differ, why do you think they do?
+
+## Weighted graphs
+
+We've been working with an unweighted graph up until now, meaning the edges were all the same. However,
+it's reasonable to think that people who cosponsor more often might be more connected. We can use a
+weighted graph instead. In a weighted graph, each edge is assigned a "weight," which can be thought of
+as a length or distance. Then a shortest path algorithm will not find the fewest number of links, but the
+lowest total weight. For instance, we can create a graph where the weight is the reciprocal of the number
+of times two representatives worked together. All we need to do is create a weight column in the
+data frame we use to create the graph. Copy the graph creation code from above and modify it to have
+a weight column that is the reciprocal of the number of times two representatives worked together. Recalulate the
+centrality metrics
+
+
+```{r}
+# answer
+
+```
+
+How do the centralities compare to before?
+
+Some representatives have become much more important in some centrality measures
+(e.g. Eleanor Holmes Norton [D-DC], who is a delegate rather than a representative
+because residents of the District of Columbia do not have a vote in Congress.)
+Why do you think this is?
+
+Some representatives have become more central because they co-sponsor a lot of bills,
+some of which may be co-sponsored by many representatives. Rebuild the graph and repeat the
+analysis using only bills with 5 or fewer cosponsors. How do the results change?
+
+
+```{r}
+# answer
+
+```
