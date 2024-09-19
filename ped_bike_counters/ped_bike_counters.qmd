@@ -1,4 +1,6 @@
-# PLAN 372 Exercise 2: Data cleaning
+---
+title: PLAN 372 Exercise 2 - Data cleaning
+---
 
 
 In this exercise, we'll be working with data from automated bicycle counters in North Carolina,
@@ -211,7 +213,7 @@ hour_totals = data |>
   summarize(hourly_count = mean(count)) |>
   ungroup()
 
-ggplot(hour_totals, aes(x=hour, y=total)) +
+ggplot(hour_totals, aes(x=hour, y=hourly_count)) +
   geom_col() +
     facet_wrap(~location)
 

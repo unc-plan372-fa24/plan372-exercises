@@ -264,8 +264,8 @@ unique(total_entries$day_of_week)
 
 ### recode that to weekday/weekend
 ```{r}
-total_entries$weekend = recode(total_entries$day_of_week, "Mon"="weekday", "Tue"="weekday", "Wed"="weekday", "Thu"="weekday",
-                               "Fri"="weekday", "Sat"="weekend", "Sun"="weekend")
+total_entries$weekend = case_match(total_entries$day_of_week, "Mon"~"weekday", "Tue"~"weekday", "Wed"~"weekday", "Thu"~"weekday",
+                               "Fri"~"weekday", "Sat"~"weekend", "Sun"~"weekend")
 ```
 
 ### Make sure that there are no missing values
