@@ -137,6 +137,19 @@ combined = bind_rows(conv_long, rbob_long)
 
 ```
 
+### Sample sizes
+
+Sometimes you will want to see how many observations are in each of the groups produced by `group_by`. Within `summarize`, we can use the `n()` function to calculate the sample size in each group. For instance, the code below calculates how many observations there are for each fuel type. The `la_rbob` type has many fewer observations, as that one does not have data prior to 2003.
+
+
+```{r}
+combined |>
+    group_by(name) |>
+    summarize(count=n())
+
+```
+
+
 
 ### Exercise: create a monthly average by fuel type, and plot it
 
@@ -149,6 +162,7 @@ Your data should have entries for June 1986, July 1986, etc.
 ```
 
 Have they trended together? Which appears to be most expensive?
+
 
 ## Fancier plotting
 
