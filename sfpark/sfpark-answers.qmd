@@ -390,6 +390,14 @@ ggplot(citywide_entries, aes(x=date, y=entries)) +
 ```
 
 wow, that's a mess - there's too much day-to-day variation to understand trends.
+
+One option would be to create a histogram of the data, showing the general distribution of the total number of entries.
+
+```{r}
+ggplot(citywide_entries, aes(x=entries)) +
+  geom_histogram()
+```
+
 let's group the data by month and year, and plot again
 the floor_date function returns the beginning of whatever period you put in - in this
 case, the beginning of the month
