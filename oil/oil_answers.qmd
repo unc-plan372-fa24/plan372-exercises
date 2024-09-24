@@ -65,7 +65,7 @@ these data are on, then we can read them using read_excel and specifying a sheet
 First, read conventional gasoline. Update sheet to be correct if necessary.
 
 ```{r}
-conv = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 2")
+conv = read_excel(here::here("oil", "PET_PRI_SPT_S1_D.xls"), sheet="Data 2")
 ```
 
 ### Now take a look at that dataset.
@@ -77,7 +77,7 @@ before the column names in the Excel sheet. This is pretty common in Excel. We c
 with the skip argument to read_excel(). read_csv also has a skip argument, if you ever need it.
 
 ```{r}
-conv = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 2", skip=2)
+conv = read_excel(here::here("oil", "PET_PRI_SPT_S1_D.xls"), sheet="Data 2", skip=2)
 ```
 
 ### Rename the columns to be easier to work with. We'll call them ny_conventional and gulf_conventional.
@@ -96,7 +96,7 @@ conv = rename(
 
 ```{r}
 # answer
-rbob = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 3", skip=2)
+rbob = read_excel(here::here("oil", "PET_PRI_SPT_S1_D.xls"), sheet="Data 3", skip=2)
 ```
 
 ### Rename the Los Angeles price column to la_rbob
@@ -115,9 +115,11 @@ We want to get conventional and RBOB into the same data frame. We can do this by
 
 ```{r}
 conv_long = conv |>
+    # c creates a "vector" (a set of objects in a particular order), and all_of says that we want to pivot all of these columns
     pivot_longer(all_of(c("ny_conventional", "gulf_conventional")))
 
 rbob_long = rbob |>
+    # c and all_of not necessary here as we are only pivoting one column
     pivot_longer(la_rbob)
 
 combined = bind_rows(conv_long, rbob_long)

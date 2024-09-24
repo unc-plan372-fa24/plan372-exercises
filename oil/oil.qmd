@@ -71,7 +71,7 @@ First, read conventional gasoline. Update sheet to be correct if necessary.
 
 
 ```{r}
-conv = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 2")
+conv = read_excel(here::here("oil", "PET_PRI_SPT_S1_D.xls"), sheet="Data 2")
 
 ```
 
@@ -85,7 +85,7 @@ with the skip argument to read_excel(). read_csv also has a skip argument, if yo
 
 
 ```{r}
-conv = read_excel("oil/PET_PRI_SPT_S1_D.xls", sheet="Data 2", skip=2)
+conv = read_excel(here::here("oil", "PET_PRI_SPT_S1_D.xls"), sheet="Data 2", skip=2)
 
 ```
 
@@ -126,9 +126,11 @@ We want to get conventional and RBOB into the same data frame. We can do this by
 
 ```{r}
 conv_long = conv |>
+    # c creates a "vector" (a set of objects in a particular order), and all_of says that we want to pivot all of these columns
     pivot_longer(all_of(c("ny_conventional", "gulf_conventional")))
 
 rbob_long = rbob |>
+    # c and all_of not necessary here as we are only pivoting one column
     pivot_longer(la_rbob)
 
 combined = bind_rows(conv_long, rbob_long)
