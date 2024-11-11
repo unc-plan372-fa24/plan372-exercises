@@ -286,6 +286,26 @@ Some representatives have become much more important in some centrality measures
 because residents of the District of Columbia do not have a vote in Congress.)
 Why do you think this is?
 
+You may notice that the degree centrality did not change, because the degree of a node is not
+affected by the weight. The betweenness and closeness centralities changed in similar ways, but the
+Eigenvector centrality was kind of opposite. The reason for this is that eigenvector centrality treats
+edge weights as _strengths_ rather than _distances_, so higher weights mean representatives
+that are more connected. To make eigenvector centrality comparable in a weighted graph
+we would want to set the weights to the number of bills, rather than the reciprocal of the
+number of bills. Try that below:
+
+```{r}
+# answer
+sponsor_pairs = group_by(sponsors, sponsor1, sponsor2) |>
+  summarize(weight=n()) |>
+  ungroup()
+
+eig_weight_graph = graph_from_data_frame(sponsor_pairs, directed=F)
+
+eigen_centrality(eig_weight_graph)$vector
+```
+
+
 Some representatives have become more central because they co-sponsor a lot of bills,
 some of which may be co-sponsored by many representatives. Rebuild the graph and repeat the
 analysis using only bills with 5 or fewer cosponsors. How do the results change?
