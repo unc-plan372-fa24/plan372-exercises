@@ -53,3 +53,5 @@ rsconnect/
 *_files
 .DS_Store   
 .vscode
+
+rosm.cache

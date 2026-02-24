@@ -11,6 +11,7 @@ the neighborhoods served by libraries.
 library(tidyverse)
 library(sf)  # The sf package provides functions for working with spatial data
 library(ggspatial)
+library(leaflet)
 ```
 
 First, we need to read in data. We'll start by reading some Census data. The geometries for the Census data
@@ -85,7 +86,7 @@ Now, we can plot a map, and symbolize by a variable - in this case, number of Af
 
 ```{r}
 ggplot() +
-  geom_sf(data=census, aes(fill=race_black_african_american_alone)) +
+  layer_spatial(data=census, aes(fill=race_black_african_american_alone)) +
     theme_minimal() +
     # and this will remove the coordinates from the axes
     theme(
@@ -119,7 +120,7 @@ and now map it again
 
 ```{r}
 ggplot() +
-  geom_sf(data=census, aes(fill=pct_african_american)) +
+  layer_spatial(data=census, aes(fill=pct_african_american)) +
     theme_minimal() +
     # and this will remove the coordinates from the axes
     theme(
@@ -136,6 +137,7 @@ ggplot() +
       palette="Blues"
     )
 ```
+
 
 ## Libraries 
 
@@ -159,8 +161,8 @@ libraries = st_as_sf(libraries, coords=c("lon", "lat"), crs=4326)
 
 ```{r}
 ggplot() +
-  geom_sf(data=census) +
-  geom_sf(data=libraries, color="red")
+  layer_spatial(data=census) +
+  layer_spatial(data=libraries, color="red")
 ```
 
 Now let's build a 1km buffer around the libraries.
@@ -176,9 +178,9 @@ libraries_buffer = st_buffer(libraries, 1000)
 ```{r}
 # answer
 ggplot() +
-  geom_sf(data=census) +
-  geom_sf(data=libraries_buffer, color="blue") +
-  geom_sf(data=libraries, color="red") +
+  layer_spatial(data=census) +
+  layer_spatial(data=libraries_buffer, color="blue") +
+  layer_spatial(data=libraries, color="red") +
   theme_minimal() +
   # and this will remove the coordinates from the axes
   theme(
@@ -198,8 +200,8 @@ Now, make a map showing census block groups in library service areas
 
 ```{r}
 ggplot() +
-  geom_sf(data=census, aes(fill=library_zone)) +
-  geom_sf(data=libraries, color="red") +
+  layer_spatial(data=census, aes(fill=library_zone)) +
+  layer_spatial(data=libraries, color="red") +
   annotation_scale() +
   theme_minimal() +
   # and this will remove the coordinates from the axes
@@ -209,6 +211,38 @@ ggplot() +
   )
 ```
 
+## Exercise: add a basemap
+
+Map the block groups transparent so you can see it.
+
+```{r}
+ggplot() +
+  annotation_map_tile(zoomin=1) +
+  layer_spatial(data=census, aes(fill=library_zone), alpha=0.25) +
+  layer_spatial(data=libraries, color="red") +
+  annotation_scale() +
+  theme_minimal() +
+  # and this will remove the coordinates from the axes
+  theme(
+    axis.text = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  annotate("label", Inf, -Inf, label="Map data © OpenStreetMap contributors", fill="white", hjust=1.01, vjust=-0.1)
+
+```
+
+We could also visualize this with Leaflet. We have to specify the aesthetics slightly differently, defining a palette and then using it in the map.
+
+```{r}
+# use colorFactor for a factor (categorical) variable
+# other options are colorBin for a binned scale, see ?colorBin for information
+palette = colorFactor("RdBu", domain=census$library_zone)
+
+leaflet() |>
+  addTiles() |>
+  addPolygons(data=st_transform(census, 4326), fill=TRUE, fillColor=~palette(library_zone), fillOpacity=0.75, weight=0) |>
+  addCircleMarkers(data=st_transform(libraries, 4326))
+```
 
 And now, we can compare the demographics of the Census tracts around libraries to the
 demographics of the region as a whole, using group_by

@@ -13,6 +13,7 @@ First, load the libraries we need for spatial data analysis and mapping:
 library(tidyverse)
 library(sf)
 library(ggspatial)
+library(prettymapr)
 ```
 
 We are going to (initially) need two files for this analysis: the waterbodies we've used previously, and "nc_orange_parcels_poly.shp", which contains information on land "parcels" (i.e. lots) in Orange and Durham counties. They are both in the ZIP file you downloaded. You don't need to create `.Renviron` again, but you will need to use DATA_PATH to load the datasets. Load them now. Call the waterbodies `waterbodies` and the parcels `parcels`.
@@ -33,14 +34,14 @@ Map the parcels and water bodies, just to get an idea what we're looking at.
 ```{r}
 # answer:
 ggplot() +
-    geom_sf(data=parcels) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
+    annotation_spatial(data=parcels) +
+    annotation_spatial(data=waterbodies, color="blue", fill="blue") +
     theme_minimal() +
     theme(
         axis.text = element_blank(),
         panel.grid = element_blank()
     ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511))
+    shadow_spatial(st_bbox(c(xmin=-79.0755, xmax=-79.0031, ymin=35.8943, ymax=35.9511), crs=4326))
 ```
 
 ## What is near water?
@@ -96,19 +97,19 @@ Now we are ready to buffer. Since the units of State Plane North Carolina are me
 water_buffer = st_buffer(waterbodies, 150)
 ```
 
-Map that, adding water_buffer to the map below the water bodies but above the parcels. It will look best if you make it partially transparent by putting `alpha=0.5` in `geom_sf`.
+Map that, adding water_buffer to the map below the water bodies but above the parcels. It will look best if you make it partially transparent by putting `alpha=0.5` in `annotation_spatial`. We keep the crs of shadow_spatial as 4326, because we are specifying latitude/longitude values there.
 
 ```{r}
 ggplot() +
-    geom_sf(data=parcels) +
-    geom_sf(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
+    annotation_spatial(data=parcels) +
+    annotation_spatial(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
+    annotation_spatial(data=waterbodies, color="blue", fill="blue") +
     theme_minimal() +
     theme(
         axis.text = element_blank(),
         panel.grid = element_blank()
     ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511))
+    shadow_spatial(st_bbox(c(xmin=-79.0755, xmax=-79.0031, ymin=35.8943, ymax=35.9511), crs=4326))
 ```
 
 ## Aggregating the analysis
@@ -125,6 +126,7 @@ st_intersects, and one column for each feature in the second. So we want to appl
 each row to find out if that parcel touched any other parcel. We save that as a new column.
 
 ```{r}
+#| error: true
 parcels$at_risk = apply(st_intersects(parcels, water_buffer), 1, any)
 ```
 
@@ -144,33 +146,42 @@ At this point, we can map the at-risk parcels to make sure that everything looks
 
 ```{r}
 ggplot() +
-    geom_sf(data=parcels, aes(fill=at_risk)) +
-    geom_sf(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
+    annotation_spatial(data=parcels, aes(fill=at_risk)) +
+    annotation_spatial(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
+    annotation_spatial(data=waterbodies, color="blue", fill="blue") +
     theme_minimal() +
     theme(
         axis.text = element_blank(),
         panel.grid = element_blank()
     ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511))
+    shadow_spatial(st_bbox(c(xmin=-79.0755, xmax=-79.0031, ymin=35.8943, ymax=35.9511), crs=4326))
 ```
 
-Why did that come out blank?
 
-It's because of our `coord_sf` call. By default, `coord_sf` will interpret the limits in whatever projection the first layer is using, which is now State Plane and uses meters, but our limits are still in degrees. The easiest fix is to just tell `coord_sf` to use a different default CRS than the one the data uses; then it will translate the limits from that CRS to the one the data use. Here, we specify the default CRS as 4326 (aka WGS 84) which is the most common geographic coordinate system (there are a few others, e.g. 4269, which make slightly different assumptions about the shape of the earth). We specify the crs of the map itself as 32119 to match the data.
+## Basemaps
+
+That map would be more useful with some context. We can use `annotation_map_tile` to add tiles from [OpenStreetMap](https://osm.org). We will also need to add attribution.
 
 ```{r}
-ggplot() +
-    geom_sf(data=parcels, aes(fill=at_risk)) +
-    geom_sf(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
+# answer:
+ggplot(parcels) +
+    # zoomin=1 just makes the basemap more detailed, which I think looks better on this map. annotation_map_tile
+    # automatically guesses a zoom level, but you can adjust it with zoomin.
+    annotation_map_tile(zoomin=1) +
+    annotation_spatial(data=parcels, aes(fill=at_risk), alpha=0.5) +
+    annotation_spatial(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
+    annotation_spatial(data=waterbodies, color="blue", fill="blue") +
+    shadow_spatial(st_bbox(c(xmin=-79.0755, xmax=-79.0031, ymin=35.8943, ymax=35.9511), crs=4326)) +
     theme_minimal() +
     theme(
         axis.text = element_blank(),
         panel.grid = element_blank()
     ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511), crs=32119, default_crs=4326)
+    annotation_scale() +
+    annotate("label", Inf, -Inf, label="Map data © OpenStreetMap contributors, Town of Chapel Hill", fill="white", hjust=1.01, vjust=-0.1)
 ```
+
+## Counting at-risk parcels
 
 Now, we can treat that parcels dataset just like any non-spatial dataset for analysis. First, let's just count the number of at-risk parcels. `st_drop_geometry` doesn't affect the answer, but removes the spatial part of the dataset which makes processing faster.
 

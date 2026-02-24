@@ -14,6 +14,7 @@ First, load the libraries we need for spatial data analysis and mapping:
 library(tidyverse)
 library(sf)
 library(ggspatial)
+library(prettymapr)
 
 ```
 
@@ -64,7 +65,7 @@ To understand why, we have to think a bit about degrees of latitude and longitud
 Check your understanding:
 
 - What is the range of latitude values, i.e. what is the lowest and highest latitude? (answer: )
-- How long is a degree of latitude (hint: the circumference of the earth is roughly 40,000 km)? (answer: )
+- How long is a degree of latitude (hint: the circumference of the earth is roughly 40,000 km)? (answer: ) / 90 degrees = 111.1 km)
 
 Now, let's think about longitude. Your longitude is the angle at the center of the Earth between the prime meridian, which is a north/south line that passes through the Greenwich Observatory in London. (Fun fact: it was always obvious where to put the Equator. But the prime meridian is arbitrary, and until 1884 many countries used their own—the United Kingdom used Greenwich, France used Paris, the US meant to use the Washington Monument but the ground was too swampy there so they moved the monument about 100 meters east but kept the meridian where it was supposed to be, and so on).
 
@@ -96,20 +97,20 @@ water_buffer = st_buffer(waterbodies, 150)
 
 ```
 
-Map that, adding water_buffer to the map below the water bodies but above the parcels. It will look best if you make it partially transparent by putting `alpha=0.5` in `geom_sf`.
+Map that, adding water_buffer to the map below the water bodies but above the parcels. It will look best if you make it partially transparent by putting `alpha=0.5` in `annotation_spatial`. We keep the crs of shadow_spatial as 4326, because we are specifying latitude/longitude values there.
 
 
 ```{r}
 ggplot() +
-    geom_sf(data=parcels) +
-    geom_sf(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
+    annotation_spatial(data=parcels) +
+    annotation_spatial(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
+    annotation_spatial(data=waterbodies, color="blue", fill="blue") +
     theme_minimal() +
     theme(
         axis.text = element_blank(),
         panel.grid = element_blank()
     ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511))
+    shadow_spatial(st_bbox(c(xmin=-79.0755, xmax=-79.0031, ymin=35.8943, ymax=35.9511), crs=4326))
 
 ```
 
@@ -128,6 +129,7 @@ each row to find out if that parcel touched any other parcel. We save that as a 
 
 
 ```{r}
+#| error: true
 parcels$at_risk = apply(st_intersects(parcels, water_buffer), 1, any)
 
 ```
@@ -153,36 +155,30 @@ At this point, we can map the at-risk parcels to make sure that everything looks
 
 ```{r}
 ggplot() +
-    geom_sf(data=parcels, aes(fill=at_risk)) +
-    geom_sf(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
+    annotation_spatial(data=parcels, aes(fill=at_risk)) +
+    annotation_spatial(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
+    annotation_spatial(data=waterbodies, color="blue", fill="blue") +
     theme_minimal() +
     theme(
         axis.text = element_blank(),
         panel.grid = element_blank()
     ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511))
+    shadow_spatial(st_bbox(c(xmin=-79.0755, xmax=-79.0031, ymin=35.8943, ymax=35.9511), crs=4326))
 
 ```
 
-Why did that come out blank?
 
-It's because of our `coord_sf` call. By default, `coord_sf` will interpret the limits in whatever projection the first layer is using, which is now State Plane and uses meters, but our limits are still in degrees. The easiest fix is to just tell `coord_sf` to use a different default CRS than the one the data uses; then it will translate the limits from that CRS to the one the data use. Here, we specify the default CRS as 4326 (aka WGS 84) which is the most common geographic coordinate system (there are a few others, e.g. 4269, which make slightly different assumptions about the shape of the earth). We specify the crs of the map itself as 32119 to match the data.
+## Basemaps
+
+That map would be more useful with some context. We can use `annotation_map_tile` to add tiles from [OpenStreetMap](https://osm.org). We will also need to add attribution.
 
 
 ```{r}
-ggplot() +
-    geom_sf(data=parcels, aes(fill=at_risk)) +
-    geom_sf(data=water_buffer, color="lightblue", fill="lightblue", alpha=0.5) +
-    geom_sf(data=waterbodies, color="blue", fill="blue") +
-    theme_minimal() +
-    theme(
-        axis.text = element_blank(),
-        panel.grid = element_blank()
-    ) +
-    coord_sf(xlim=c(-79.0755, -79.0031), ylim=c(35.8943, 35.9511), crs=32119, default_crs=4326)
+# answer:
 
 ```
+
+## Counting at-risk parcels
 
 Now, we can treat that parcels dataset just like any non-spatial dataset for analysis. First, let's just count the number of at-risk parcels. `st_drop_geometry` doesn't affect the answer, but removes the spatial part of the dataset which makes processing faster.
 
