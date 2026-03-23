@@ -15,6 +15,7 @@ In addition to libraries we've used in the past, we are now loading the `tidycen
 library(tidyverse)
 library(tidycensus)
 library(sf)
+library(ggspatial)
 
 ```
 
@@ -163,9 +164,9 @@ it before plotting and store it in a variable.
 
 
 ```{r}
-ggplot(commute, aes(fill=wfhE / total_modeE * 100)) +
-  geom_sf() +
-  scale_fill_fermenter(palette="Blues", n.breaks=5)
+ggplot() +
+  layer_spatial(data=commute, aes(fill=wfhE / total_modeE * 100)) +
+  scale_fill_binned(palette="Blues", n.breaks=5)
 
 ```
 
@@ -175,11 +176,11 @@ proportion of the total level of working from home.
 
 
 ```{r}
-ggplot(commute, aes(fill=wfhM / wfhE)) +
-  geom_sf() +
+ggplot(commute) +
+  layer_spatial(data = commute, aes(fill=wfhM / wfhE)) +
   # I'm adding direction=1 so darker red is a higher margin of error (reversing the normal
   # order of the color palette)
-  scale_fill_fermenter(palette="Reds", n.breaks=5, direction=1) +
+  scale_fill_binned(palette="Reds", n.breaks=5, direction=1) +
   # the legend label was ugly in the previous map. We can add labs (labels)
   # to the map to tell ggplot how to label different aesthetics. Here, we label
   # fill. You can label anything you put in the aes() function. \n indicates a line break.

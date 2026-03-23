@@ -14,6 +14,7 @@ In addition to libraries we've used in the past, we are now loading the `tidycen
 library(tidyverse)
 library(tidycensus)
 library(sf)
+library(ggspatial)
 ```
 
 Before we start, we need to install our Census API key that we got via email.
@@ -169,9 +170,9 @@ I am calculating the percentage right in the aesthetic here. You could also calc
 it before plotting and store it in a variable.
 
 ```{r}
-ggplot(commute, aes(fill=wfhE / total_modeE * 100)) +
-  geom_sf() +
-  scale_fill_fermenter(palette="Blues", n.breaks=5)
+ggplot() +
+  layer_spatial(data=commute, aes(fill=wfhE / total_modeE * 100)) +
+  scale_fill_binned(palette="Blues", n.breaks=5)
 ```
 
 It's (unfortunately) fairly unusual for researchers to use the margin of error information, but it's a good
@@ -179,11 +180,11 @@ idea to at least look at it. Here, I plot the margin of error for working from h
 proportion of the total level of working from home.
 
 ```{r}
-ggplot(commute, aes(fill=wfhM / wfhE)) +
-  geom_sf() +
+ggplot(commute) +
+  layer_spatial(data = commute, aes(fill=wfhM / wfhE)) +
   # I'm adding direction=1 so darker red is a higher margin of error (reversing the normal
   # order of the color palette)
-  scale_fill_fermenter(palette="Reds", n.breaks=5, direction=1) +
+  scale_fill_binned(palette="Reds", n.breaks=5, direction=1) +
   # the legend label was ugly in the previous map. We can add labs (labels)
   # to the map to tell ggplot how to label different aesthetics. Here, we label
   # fill. You can label anything you put in the aes() function. \n indicates a line break.
@@ -211,9 +212,18 @@ Label your legend and format your map as you like.
 # I am dividing by the total variable from the travel time data. These are not the same,
 # because travel time is not collected from people who WFH. I recommend always using totals
 # from the same ACS table. Label the legend.
-ggplot(commute, aes(fill=(ttime_60_89E + ttime_90plusE) / total_ttimeE)) +
-  geom_sf() +
-  scale_fill_fermenter(n.breaks=5, direction=1) +
+
+# I am storing the proportion in a column so I can use it both for coloring and in the quantile
+# function.
+commute = commute |>
+  mutate(proportion_commute_60min = (ttime_60_89E + ttime_90plusE) / total_ttimeE)
+
+ggplot() +
+  layer_spatial(data=commute, aes(fill=proportion_commute_60min)) +
+  scale_fill_binned(
+    breaks=round(unname(quantile(commute$proportion_commute_60min, c(0.2, 0.4, 0.6, 0.8))), digits=2),
+    limits=range(commute$proportion_commute_60min)
+  ) +
   labs(fill="Proportion who commute\nover 60 minutes") +
   theme(
     panel.grid=element_blank(), # remove gridlines
@@ -248,14 +258,20 @@ age = get_acs(
   geometry = T
 )
 
-age = mutate(age, prop18_24 = (
-    male_18_19E + male_20E + male_21E + male_22_24E +
-    female_18_19E + female_20E + female_21E + female_22_24E
-  ) / total_popE)
+age = age |>
+  filter(total_popE > 0) |> # avoid dividing by zero
+  mutate(pct18_24 = (
+      male_18_19E + male_20E + male_21E + male_22_24E +
+      female_18_19E + female_20E + female_21E + female_22_24E
+    ) / total_popE * 100
+  )
 
-ggplot(age, aes(fill=prop18_24 * 100)) +
-  geom_sf() +
-  scale_fill_fermenter(n.breaks=7, palette="Blues") +
+ggplot() +
+  layer_spatial(data=age, aes(fill=pct18_24)) +
+  scale_fill_binned(
+    breaks=unname(quantile(age$pct18_24, c(0.2, 0.4, 0.6, 0.8))),
+    limits=range(age$pct18_24)
+  ) +
   labs(fill="Percentage 18-24\nyears old") +
   theme(
     panel.grid=element_blank(), # remove gridlines
