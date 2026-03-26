@@ -1,0 +1,325 @@
+---
+title: Water network analysis
+author: Matt Bhagat-Conway
+---
+
+Municipal water systems are unseen heroes of urban life, and are quite literally lifesaving; waterborne illnesses 
+such as cholera were major killers in cities as recently as the 19th and early 20th centuries, but are all but
+unheard of in the developed world today, thanks almost entirely to clean water supplies. Given how much we rely
+on them, it is critical that water systems continue to operate safely and at full capacity 24/7/365. However, water
+filtration systems are complicated, and nothing is 100% reliable. Failures of water supply systems are rare, but
+not that rare—in the last few years there have been several high-profile system failures (e.g. lead in Washington, DC in
+the 1990s; lead in Flint, Michigan in the 2010s; system failures and biological contamination in Jackson, Mississippi in
+the 2020s; treatment system failures in Mebane, NC in summer 2025; and chemical contamination in Pittsboro, NC in 2023).
+
+Ideally, our water systems would be resilient to failures. One of the ways to make them more resilient is through system
+interconnections: pipes that connect one water system to another. If the treatment plant in one city goes offline, they
+can get water from a neighboring city. In the wake of Tropical Storm Chantal, for instance, Mebane received water from
+Durham via an interconnect when their water treatment plant was flooded.
+
+In this exercise, we will work with data on system interconnections among North Carolina water systems, collected by
+[the UNC Environmental Finance Center](https://efc.sog.unc.edu/resource/interactive-map-of-community-water-system-interconnections-in-north-carolina/).
+It is natural to represent this data as a graph; each water system is a node, and each interconnection is an edge.
+This is a _directed_ graph: some interconnections can only send water in one direction. Interconnections that can send
+water in both directions are simply represented by two edges.
+
+We'll start by loading some libraries. The new library we see here is `igraph`, a library for working with graph data.
+
+
+```{r}
+library(tidyverse)
+library(igraph)
+
+```
+
+Next, we will read in the data. It is stored in GraphML format, which is a common data format for sharing graph data.
+
+
+```{r}
+graph = read_graph(here::here("networks", "water", "nc_water.graphml"), format="graphml")
+
+```
+
+We can get some information about the graph, such as the number of nodes (vertices):
+
+
+```{r}
+length(V(graph))
+
+```
+
+And the number of edges:
+
+
+```{r}
+length(E(graph))
+
+```
+
+We can plot the graph, just to see what the connections look like:
+
+
+```{r}
+ggplot() +
+    geom_point(data=as_data_frame(graph, "vertices"), aes(x=x, y=y)) +
+    geom_segment(data=as_data_frame(graph, "edges"), aes(x=xstart, y=ystart, xend=xend, yend=yend), lwd = 0.1, arrow = arrow(length=unit(2, "mm"))) +
+    # make sure that one unit of x and y axes are equal, so it doesn't appear "squished"
+    coord_fixed()
+
+```
+
+## Graph-theoretic measures
+
+If a water treatment plant fails, that system may still be able to function by purchasing water from a nearby system, if there is an interconnect (and also if that system has capacity, and the interconnect is large enough, but we don't have information on that, so for the time being let's assume that if there is an interconnect there is sufficient water and capacity to support a system failure in the downstream system).
+
+"Graph-theoretic" measures are a term for measures coming from graph theory that are applicable to many different types of graphs. There are tons of these (pick up any graph theory textbook for a summary), but we'll discuss a few that are relevant in transportation.
+
+One of the simplest graph theory metrics is the "degree," which is just the number of edges connected to a node. In a directed graph, this is often divided into indegree and outdegree - the number of edges pointing into and out of a node.
+
+Let's calculate the indegree of all the nodes in the water network.
+
+
+```{r}
+degree(graph, mode="in")
+
+```
+
+That is not very useful. Let's make a bar plot. We can start by converting the vertices into a data frame, and adding an indegree column.
+
+
+```{r}
+vertices_df = as_data_frame(graph, "vertices")
+vertices_df$indegree = degree(graph, mode="in")
+
+```
+
+Exercise: make a bar plot of the indegree.
+
+
+```{r}
+# answer:
+
+```
+
+Interpret the plot. What does it mean to have an indegree of 0? Or of 1?
+
+(answer: )
+
+Exercise: plot and interpret the outdegree.
+
+
+```{r}
+vertices_df$outdegree = degree(graph, mode="out")
+vertices_df |>
+    ggplot(aes(x=outdegree)) +
+        geom_bar()
+
+```
+
+## From neighbors to paths
+
+Looking at neighbors is interesting, but this is a network—it is possible to chain together interconnections if needed. For instance, if Mebane's treatment plant is offline, and Durham doesn't have enough capacity to serve both Mebane and Durham, perhaps Morrisville can provide water to Durham, and then Durham can provide water to Mebane. Water is fungible - it doesn't even have to be the same water going from Morrisville to Durham as Durham to Mebane.
+
+One of the fundamental buildings blocks of network analysis is the shortest path, which identifies the shortest set of edges to take to get from point A to B. For instance, we can calculate how we would get water from Raleigh to Hillsborough:
+
+
+```{r}
+paths = all_shortest_paths(graph, V(graph)[short_label == "Raleigh"], V(graph)[short_label == "Hillsborough"], mode="out")
+
+paths
+
+```
+
+`all_shortest_paths` will return multiple paths if there are ties. `paths$vpath` contains the vertices of each path; there is only one path in this case.
+
+We found the path, but it just has the vertex identifiers. We can get the more useful vertex labels.
+
+
+```{r}
+V(graph)[paths$vpaths[[1]]]$short_label
+
+```
+
+We could also plot that. This is the same plotting code as above, but now with the edges used in the path highlighted.
+
+
+```{r}
+ggplot() +
+    geom_point(data=as_data_frame(graph, "vertices"), aes(x=x, y=y)) +
+    geom_segment(data=as_data_frame(graph, "edges"), aes(x=xstart, y=ystart, xend=xend, yend=yend), arrow = arrow(length=unit(2, "mm"))) +
+
+    # add the path
+    geom_segment(data=as_data_frame(graph, "edges")[E(graph)[paths$epaths[[1]]],], aes(x=xstart, y=ystart, xend=xend, yend=yend), color="red", linewidth=2) +
+
+    # make sure that one unit of x and y axes are equal, so it doesn't appear "squished"
+    coord_fixed()
+
+```
+
+Exercise: find and map a path from "Anson County" to "Kannapolis".
+
+
+```{r}
+paths = all_shortest_paths(graph, V(graph)[short_label == "Anson County"], V(graph)[short_label == "Kannapolis"], mode="out")
+
+paths
+
+```
+
+
+```{r}
+ggplot() +
+    geom_point(data=as_data_frame(graph, "vertices"), aes(x=x, y=y)) +
+    geom_segment(data=as_data_frame(graph, "edges"), aes(x=xstart, y=ystart, xend=xend, yend=yend), arrow = arrow(length=unit(2, "mm"))) +
+
+    # add the path
+    geom_segment(data=as_data_frame(graph, "edges")[E(graph)[paths$epaths[[1]]],], aes(x=xstart, y=ystart, xend=xend, yend=yend), color="red", linewidth=2) +
+
+    # make sure that one unit of x and y axes are equal, so it doesn't appear "squished"
+    coord_fixed()
+
+```
+
+Exercise: Find and map a path from Durham to Charlotte. (answer: ).
+
+
+```{r}
+paths = all_shortest_paths(graph, V(graph)[short_label == "Durham"], V(graph)[short_label == "Charlotte"], mode="out")
+
+paths
+
+```
+
+## Components
+
+The graph we plotted had several disconnected pieces, one in the Triangle, one in the Charlotte area, and a few others. This is why we couldn't find a path from Durham to Charlotte. The graph-theoretic term for these pieces is "components." A component is a set of vertices that are all connected to one another. In a directed graph, components come in two varieties.
+
+Strong components are groups of vertices where there is a path from every vertex to every other vertex. Generally we find "maximal" strong components - meaning the largest possible sets of vertices that satisfy these criteria. Weak components mean there is a path from every vertex to every other vertex, _or vice-versa_, i.e. there might be a path from vertex i to j but not j to i. I spent [many days addressing issues that arose from mixing them up back in my private sector days](https://github.com/conveyal/r5/issues/228).
+
+The `components` function from `igraph` will identify weak and strong components. It returns a list with three elements: `membership`, which indicates which component each system is part of; `csize`, the size of each component, and `no`, the number of components.
+
+
+```{r}
+components(graph, mode = "strong")
+
+```
+
+We can add the component number as a vertex attribute to our graph:
+
+
+```{r}
+V(graph)$component = components(graph)$membership
+
+```
+
+We'll also add it as an edge attibute, so we can plot the edges in different colors. The `head_of` function gets the vertex at the start of the edge, and then we extract the component that that vertex is a part of.
+
+
+```{r}
+E(graph)$component = V(graph)[head_of(graph, E(graph))]$component
+
+```
+
+Would anything change if we used `tail_of`, which gets the vertex at the end of an edge (answer: ).
+
+
+```{r}
+ggplot() +
+    # use factor(component) to get R to treat it as a categorical variable
+    geom_point(data=as_data_frame(graph, "vertices"), aes(x=x, y=y, color=factor(component))) +
+    geom_segment(data=as_data_frame(graph, "edges"), aes(x=xstart, y=ystart, xend=xend, yend=yend, color=factor(component)), arrow = arrow(length=unit(2, "mm"))) +
+    # make sure that one unit of x and y axes are equal, so it doesn't appear "squished"
+    coord_fixed() +
+    theme(legend.position = "none")
+
+```
+
+## Neighborhoods
+
+For a lot of analyses, components are potentially too restrictive. To understand what might happen if the Durham water treatment plant failed, it is only important to know who can potentially provide water to Durham. This is known as a "neighborhood". Here we specify that we want an order-3 neighborhood, meaning every system that is "upstream" of Durham with 3 or fewer interconnections (i.e. 2 or fewer systems in between).
+
+
+```{r}
+durham_upstream = neighborhood(graph, order=3, nodes=V(graph)[short_label == "Durham"], mode="in")
+
+# neighborhood can calculate neighborhoods for many vertices at once, so it returns a list
+# of neighborhoods. Since we only calculated for Durham. 
+V(graph)[durham_upstream[[1]]]$short_label
+
+```
+
+
+```{r}
+ggplot() +
+    # use factor(component) to get R to treat it as a categorical variable
+    geom_point(data=as_data_frame(graph, "vertices"), aes(x=x, y=y, color=V(graph) %in% durham_upstream[[1]])) +
+    geom_segment(data=as_data_frame(graph, "edges"), aes(x=xstart, y=ystart, xend=xend, yend=yend), arrow = arrow(length=unit(2, "mm")), linewidth=0.25) +
+    # make sure that one unit of x and y axes are equal, so it doesn't appear "squished"
+    coord_fixed()
+
+```
+
+Exercise: calculate and map all the systems that Durham could provide water _to_ with less than three interconnections.
+
+
+```{r}
+durham_downstream = neighborhood(graph, order=3, nodes=V(graph)[short_label == "Durham"], mode="out")
+
+# neighborhood can calculate neighborhoods for many vertices at once, so it returns a list
+# of neighborhoods. Since we only calculated for Durham. 
+V(graph)[durham_downstream[[1]]]$short_label
+
+```
+
+
+```{r}
+ggplot() +
+    # use factor(component) to get R to treat it as a categorical variable
+    geom_point(data=as_data_frame(graph, "vertices"), aes(x=x, y=y, color=V(graph) %in% durham_downstream[[1]])) +
+    geom_segment(data=as_data_frame(graph, "edges"), aes(x=xstart, y=ystart, xend=xend, yend=yend), arrow = arrow(length=unit(2, "mm")), linewidth=0.25) +
+    # make sure that one unit of x and y axes are equal, so it doesn't appear "squished"
+    coord_fixed()
+
+```
+
+## Path-based metrics
+
+Degree is a specific type of _centrality metric_, which measures how central a node is in the network. There are dozens of centrality metrics available, which may have varying degrees of usefulness for different applications.
+
+Another common measure is betweenness centrality, which finds the shortest paths between every pair of water systems; the betweenness centrality of any water system is how often it appears on the shortest paths between other water systems.
+
+
+```{r}
+V(graph)$bc = betweenness(graph)
+
+# look at which systems have the highest betweenness
+as_data_frame(graph, "vertices") |>
+    select(short_label, bc) |>
+    arrange(desc(bc)) |>
+    head()
+
+```
+
+Betweenness centrality says something about the role these systems can play in moving water around the state. For example, Johnston Co-West has the highest betweenness centrality, which indicates it can play an important role in moving water between many systems.
+
+Betweenness centrality is often interpreted as a measure of how critical a node is to network function, [but this is actually not correct](https://doi.org/10.32866/001c.159015), because it does not account for the possibility of slightly longer paths that may bypass the node if it were to fail. For example, let's simulate a failure of the Johnston County system, and see how many systems can no longer share water:
+
+
+```{r}
+# we can remove a vertex from a graph by selecting it and subtracting it from the graph
+# all edges connected to it will also be removed.
+# NC0351070 is the vertex ID printed in the previous step.
+graph_no_joco = graph - V(graph)["NC0496065"]
+
+# Confirm it worked
+stopifnot(length(V(graph)) == length(V(graph_no_joco)) + 1)
+
+```
+
+Exercise: calculate the number of strong components in the modified graph, and compare it to the number of strong components in the original graph.
+
+
+```{r}
+# answer:
+
+```
