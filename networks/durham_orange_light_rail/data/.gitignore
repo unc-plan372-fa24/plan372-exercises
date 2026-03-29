@@ -1,0 +1,5 @@
+*.mapdb
+*.mapdb.p
+network.dat
+network_settings.json
+r5r-log.log

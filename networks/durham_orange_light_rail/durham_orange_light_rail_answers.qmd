@@ -1,0 +1,455 @@
+---
+title: Durham-Orange Light Rail
+author: Matt Bhagat-Conway
+---
+
+The Durham-Orange Light Rail was a planned light rail system that would have connected Durham and Chapel Hill. It was initially selected for federal funding but was discontinued in 2019 due to opposition from Duke University. In this exercise, we will analyze how the light rail would have affected access to UNC campus as well as access to jobs across the region.
+
+## Load libraries
+
+The primary library we will be using is `r5r`, which interfaces with the [Conveyal R5 routing engine](https://docs.conveyal.com/) for efficient routing by walk, bike, transit, or car. Installing `r5r` is a little bit trickier than other packages, because it is written in the Java programming language, so we need to first confirm that Java is installed. The `rJavaEnv` library makes this fairly easy.
+
+```{r}
+# this makes sure Java version 21 (required by r5r) is installed and in use.
+# the :: syntax allows us to load a function from a library without loading the library.
+rJavaEnv::use_java(21)
+```
+
+```{r}
+# next, we need to set up r5r. It can use a lot of memory in large regions, so we tell
+# Java to allow it to use up to 4 gigabytes
+options(java.parameters = "-Xmx4G")
+
+# This will speed up downloading LEHD data which we use at the end of the script
+options(lehdr_use_cache = TRUE)
+```
+
+```{r}
+# and finally we can load the libaries we'll be using
+library(r5r)
+library(tidyverse)
+library(ggspatial)
+library(sf)
+library(lehdr)
+library(tigris)
+```
+
+## Building the networks
+
+`r5r` networks correspond with a folder on your computer that contains street network data from OpenStreetMap (in PBF format), and optionally transit schedule data (in GTFS .zip format). You can get OpenStreetMap data for anywhere in the world from <https://slice.openstreetmap.us>. Most transit agencies post GTFS data on their websites, usually under a "developer" page. The US Federal Transit Administration [also collects GTFS data](https://www.transit.dot.gov/ntd/data-product/2023-annual-database-general-transit-feed-specification-gtfs-weblinks), and <https://transit.land> is another good source.
+
+The `networks/durham_orange_light_rail/data/` folder contains two subfolders, `baseline` and `scenario`, which represent the current transit network and the transit network with the DOLR added. If you look in those directories, you'll see they both contain a `.osm.pbf` network data file, and `zip` GTFS files for GoDurham, GoTriangle, and Chapel Hill Transit. The `scenario` directory also contains a `zip` file for the Durham-Orange Light Rail.
+
+The function `build_network` builds the network. It takes the path where the data are stored as an argument. We will run it twice, to build the baseline and scenario networks.
+
+```{r}
+baseline = build_network(here::here(
+  "networks/durham_orange_light_rail/data/baseline/"
+))
+```
+
+```{r}
+scenario = build_network(here::here(
+  "networks/durham_orange_light_rail/data/scenario/"
+))
+```
+
+## Pathfinding
+
+Let's compare how you would get from UNC campus to South Square in Durham with vs. without the light rail.
+
+First, we need to create a dataset that has our origin and destination.
+
+```{r}
+od = tribble(
+  ~id            , ~lat              , ~lon               ,
+  "UNC Campus"   , 35.90297257146918 , -79.04908668573647 ,
+  "South Square" , 35.96782671200743 , -78.95508915285211
+)
+```
+
+Next, we can find the shortest path
+
+```{r}
+base_path = detailed_itineraries(
+  baseline,
+  origins = od[1, ], # od[1, ] means the first row of the od dataset
+  destinations = od[2, ],
+  mode = "TRANSIT",
+  departure_datetime = ymd_hms("2026-03-25 17:00:00")
+)
+```
+
+The warning "Direct mode WALK last state wasn't found" just means that `r5r` couldn't find an alternate way to get there without using transit.
+
+We can take a look at the route:
+
+```{r}
+base_path
+```
+
+Results from `detailed_itineraries` are `sf` objects, so we can map them directly.
+
+```{r}
+ggplot() +
+  annotation_map_tile() +
+  layer_spatial(base_path, aes(color = str_to_title(mode))) +
+  labs(color = "Mode") +
+  annotate(
+    "label",
+    Inf,
+    -Inf,
+    hjust = 1,
+    vjust = 0,
+    label = "Map data © OpenStreetMap contributors"
+  )
+```
+
+Exercise: calculate the same route using the Durham-Orange Light Rail network, and map it.
+
+```{r}
+# answer:
+scen_path = detailed_itineraries(
+  scenario,
+  origins = od[1, ], # od[1, ] means the first row of the od dataset
+  destinations = od[2, ],
+  mode = "TRANSIT",
+  departure_datetime = ymd_hms("2026-03-25 17:00:00")
+)
+
+scen_path
+```
+
+```{r}
+ggplot() +
+  annotation_map_tile() +
+  layer_spatial(scen_path, aes(color = str_to_title(mode))) +
+  labs(color = "Mode") +
+  annotate(
+    "label",
+    Inf,
+    -Inf,
+    hjust = 1,
+    vjust = 0,
+    label = "Map data © OpenStreetMap contributors"
+  )
+```
+
+## Isochrones
+
+Pathfinding is arguably the simplest and most understandable network analysis technique, but it is often not particularly useful for analytical purposes. Pathfinding finds a trip from a single origin to a single destination, which is only going to be relevant for a few people trying to make that particular trip. An isochrone instead measures all the places you could get to from a particular location in a fixed amount of time.
+
+Let's look at all of the places you could get to via transit in 45 minutes from UNC, with the existing transit system and with the light-rail.
+
+```{r}
+base_iso = isochrone(
+  baseline,
+  origins = od[1, ], # od[1, ] means the first row of the od dataset
+  # we no longer need to specify a destination
+  mode = "TRANSIT",
+  departure_datetime = ymd_hms("2026-03-25 16:30:00"),
+  # We specify a 45 minute cutoff - you could also specify multiple cutoffs if desired, and you would get a dataset with multiple polygons
+  cutoffs = c(45),
+
+  # These are only relevant for transit routing. The travel time on transit will
+  # depend on exactly when you leave, especially in the Triangle where
+  # many buses run once every 30-60 minutes. By specifying a 120-minute time
+  # window, r5r will find the travel time for every possible minute you could depart
+  # from 4:30 PM (specified above) to 6:30 PM.
+  time_window = 120L
+)
+```
+
+```{r}
+scen_iso = isochrone(
+  scenario,
+  origins = od[1, ], # od[1, ] means the first row of the od dataset
+  mode = "TRANSIT",
+  departure_datetime = ymd_hms("2026-03-25 16:30:00"),
+  cutoffs = c(45),
+  time_window = 120L
+)
+```
+
+
+
+Now, we can map those isochrones:
+
+```{r}
+# we start by getting both of the isochrones into the same data frame, so that
+# we can use aes() to have ggplot differentiate them by color.
+
+all_isos = rbind(
+  base_iso |> mutate(Network = "Baseline"),
+  scen_iso |> mutate(Network = "Scenario")
+)
+
+# now we can plot them
+
+ggplot() +
+  annotation_map_tile() +
+  # make them partially transparent so we can see the map
+  layer_spatial(data = all_isos, aes(fill = Network), alpha = 0.5) +
+  # and add the origin to the map so we can see where it is
+  layer_spatial(
+    data = st_as_sf(od[1, ], coords = c("lon", "lat"), crs = 4326),
+    color = "red"
+  ) +
+  annotate(
+    "label",
+    Inf,
+    -Inf,
+    hjust = 1,
+    vjust = 0,
+    label = "Map data © OpenStreetMap contributors"
+  )
+```
+
+Exercise: make a similar map for trips originating from the American Tobacco campus in Downtown Durham.
+
+```{r}
+# answer:
+american_tobacco = tribble(
+  ~id                , ~lat    , ~lon     ,
+  "American Tobacco" , 35.9934 , -78.9048
+)
+
+base_iso_at = isochrone(
+  baseline,
+  origins = american_tobacco,
+  mode = "TRANSIT",
+  departure_datetime = ymd_hms("2026-03-25 16:30:00"),
+  cutoffs = c(45),
+  time_window = 120L
+)
+
+scen_iso_at = isochrone(
+  scenario,
+  origins = american_tobacco,
+  mode = "TRANSIT",
+  departure_datetime = ymd_hms("2026-03-25 16:30:00"),
+  cutoffs = c(45),
+  time_window = 120L
+)
+
+scenario_isos = rbind(
+  base_iso_at |> mutate(Network = "Baseline"),
+  scen_iso_at |> mutate(Network = "Scenario")
+)
+
+ggplot() +
+  annotation_map_tile() +
+  # make them partially transparent so we can see the map
+  layer_spatial(data = scenario_isos, aes(fill = Network), alpha = 0.5) +
+  # and add the origin to the map so we can see where it is
+  layer_spatial(
+    data = st_as_sf(american_tobacco, coords = c("lon", "lat"), crs = 4326),
+    color = "red"
+  ) +
+  annotate(
+    "label",
+    Inf,
+    -Inf,
+    hjust = 1,
+    vjust = 0,
+    label = "Map data © OpenStreetMap contributors"
+  )
+```
+
+## Accessibility
+
+Isochrones are great tools, but they are still associated with a particular location, so to really get a feel for a transportation system you'd need to look at a lot of them. Zooming out one more level is accessibility. Accessibility metrics essentially create an isochrone, and then sum up the number of _opportunities_ in it - these opportunities are often jobs, but could also be parks, school, grocery stores, etc. We then repeat this for _every_ location in a region, and map the result.
+
+First, we need some information on destinations. We'll use jobs as our opportunities, so the metric will tell us something about access to economic opportunities. We can get information on job locations from the [Longitudinal Employer-Household Dynamics Origin-Destination Employment Statistics (LEHD LODES) dataset](https://lehd.ces.census.gov). This gives us total employment counts as well as home-to-work flows at the Census block level, based on unemployment insurance. We'll use the `lehdr` package to retrieve these data.
+
+```{r}
+orange_durham_jobs = grab_lodes(
+  state = "nc",
+  year = 2023,
+  # wac is workplace area characteristics, so telling us about where people work
+  lodes_type = "wac",
+  # JT00 is all jobs
+  job_type = "JT00",
+  # S000 is all workers
+  segment = "S000",
+  # LODES version 8 is the most recent, and uses 2020 Census blocks
+  version = "LODES8"
+) |>
+  # Filter to Durham County (37063) and Orange County (37135)
+  filter(str_starts(w_geocode, "37063") | str_starts(w_geocode, "37135"))
+
+orange_durham_jobs
+```
+
+The `w_geocode` variable contains the block ID, and the `C000` variable contains the total number of jobs in that block. What we don't have here is anything about where that block is. We'll use the `tigris` package to download those.
+
+```{r}
+orange_durham_blocks = blocks("nc", county = c("Durham", "Orange"), year = 2020)
+```
+
+Now we can join them together. We're using a left join because some blocks don't have any job and won't show up in the LEHD data.
+
+```{r}
+orange_durham_blocks = orange_durham_blocks |>
+  left_join(orange_durham_jobs, by = c("GEOID20" = "w_geocode")) |>
+  mutate(C000 = replace_na(C000, 0))
+```
+
+### Map job density
+
+A common way to map job density is as a dot map, by converting the blocks to dots randomly distributed for each job. The `st_sample` function will do this.
+
+```{r}
+# for efficiency only sample from blocks that actually have jobs.
+blocks_with_jobs = orange_durham_blocks |> filter(C000 > 0)
+
+# One dot will represent 50 jobs
+# Many blocks have less than 25 jobs, so would not show up at all if we just rounded
+# them. Instead, I floor (i.e. round down) the number of jobs divided by 50,
+# plus a random number between 0 and 1. So if there are for example 5 jobs in a block,
+# that will divide out to 0.1 dots. Adding that random number means there is a 10% chance
+# it will show up as one dot (if the random number is 0.9 or greater, meaning that the
+# sum will be 1 or greater), and a 90% chance it will show up as none. This way, we should
+# get roughly the right total number of dots.
+job_dots = st_sample(
+  blocks_with_jobs,
+  floor(blocks_with_jobs$C000 / 50 + runif(nrow(blocks_with_jobs)))
+)
+
+ggplot() +
+  annotation_map_tile() +
+  layer_spatial(job_dots, size = 0.25, alpha = 0.5) +
+  annotate(
+    "label",
+    Inf,
+    -Inf,
+    hjust = 1,
+    vjust = 0,
+    label = "Map data © OpenStreetMap contributors"
+  ) +
+  xlab("One dot = 50 jobs")
+```
+
+### Calculate accessibility for the baseline case
+
+```{r}
+# r5r needs point data for the origin and destinations, and the blocks are polygons.
+# We could use st_centroid which just picks a point in the middle of each block (though
+# with strangely shaped blocks, this might not even be in the block at all), or
+# st_point_on_surface which just picks a point in each block, but with Census
+# data we actually already have a lat/lon from the Census Bureau that tells us
+# where the approximate center of the block is - we just need to create a new dataset
+# where those columns are the ones used.
+orange_durham_block_points = orange_durham_blocks |>
+  st_drop_geometry() |>
+  st_as_sf(coords = c("INTPTLON20", "INTPTLAT20"), crs = 4326) |>
+  # r5r requires an ID column called "id"
+  rename(id = GEOID20)
+
+base_acc = accessibility(
+  baseline,
+  # We will use all Census blocks as origins and destinations
+  origins = orange_durham_block_points,
+  destinations = orange_durham_block_points,
+  # We want to count the number of opportunities in the C000 column
+  opportunities_colnames = "C000",
+  mode = "TRANSIT",
+  # Since we are looking at the number of jobs you can get to, rather than from,
+  # I set the time to the morning commute to take advantage of one-way
+  # peak express bus services.
+  departure_datetime = ymd_hms("2026-03-25 07:30:00"),
+  cutoffs = c(45),
+  time_window = 120L
+)
+
+head(base_acc)
+```
+
+Let's map that. Since we only had one cutoff, one opportunity, and one percentile (see r5r docs and [this paper](https://doi.org/10.5198/jtlu.2018.1074)), we will only have one row per Census block - but we can check that.
+
+```{r}
+stopifnot(!anyDuplicated(base_acc$id))
+
+orange_durham_blocks = orange_durham_blocks |>
+  left_join(
+    select(base_acc, id, accessibility_baseline = accessibility),
+    by = c("GEOID20" = "id")
+  )
+```
+
+```{r}
+ggplot() +
+  annotation_map_tile() +
+  layer_spatial(
+    orange_durham_blocks,
+    aes(fill = accessibility_baseline),
+    alpha = 0.75,
+    linewidth = 0
+  ) +
+  scale_fill_binned() +
+  labs(fill = "Accessibility") +
+  annotate(
+    "label",
+    Inf,
+    -Inf,
+    hjust = 1,
+    vjust = 0,
+    label = "Map data © OpenStreetMap contributors"
+  )
+```
+
+This map shows the number of jobs accessible within 45 minutes by transit from every point in Orange and Durham counties (though if we were doing a full analysis we'd want to include more counties, because people can and do commute to Wake, Chatham, Alamance, etc.).
+
+### Comparisons
+
+Exercise: calculate accessibility under the scenario. Call the result `scen_acc`.
+
+```{r}
+# answer:
+scen_acc = accessibility(
+  scenario,
+  # We will use all Census blocks as origins and destinations
+  origins = orange_durham_block_points,
+  destinations = orange_durham_block_points,
+  # We want to count the number of opportunities in the C000 column
+  opportunities_colnames = "C000",
+  mode = "TRANSIT",
+  # Since we are looking at the number of jobs you can get to, rather than from,
+  # I set the time to the morning commute to take advantage of one-way
+  # peak express bus services.
+  departure_datetime = ymd_hms("2026-03-25 07:30:00"),
+  cutoffs = c(45),
+  time_window = 120L
+)
+```
+
+Lastly, we can map the difference, to see where the light rail would have the largest effect.
+
+```{r}
+orange_durham_blocks = orange_durham_blocks |>
+  left_join(
+    select(scen_acc, id, accessibility_scenario = accessibility),
+    by = c("GEOID20" = "id")
+  ) |>
+  mutate(acc_change = accessibility_scenario - accessibility_baseline)
+```
+
+```{r}
+ggplot() +
+  annotation_map_tile() +
+  layer_spatial(
+    orange_durham_blocks,
+    aes(fill = acc_change),
+    alpha = 0.75,
+    linewidth = 0
+  ) +
+  # since access could get better or worse (the light rail replaces a bus),
+  # we use a scale_fill_gradient2 which gives us red colors for negative
+  # numbers and blue for positive.
+  scale_fill_gradient2() +
+  labs(fill = "Accessibility change")
+```
+
+### Other types of accessibility metrics
+
+The metrics we created above are known as _cumulative opportunities_ metrics - they set some time limit and sum up everything that can be reached in that time. So, under this type of metric, moving something from 45 minutes to 30 minutes away has no value. There are also more complex accessibility metrics that give more value to things that are closer, for example gravity metrics.
