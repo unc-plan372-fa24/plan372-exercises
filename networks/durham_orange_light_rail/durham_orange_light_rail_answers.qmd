@@ -260,7 +260,9 @@ ggplot() +
 
 Isochrones are great tools, but they are still associated with a particular location, so to really get a feel for a transportation system you'd need to look at a lot of them. Zooming out one more level is accessibility. Accessibility metrics essentially create an isochrone, and then sum up the number of _opportunities_ in it - these opportunities are often jobs, but could also be parks, school, grocery stores, etc. We then repeat this for _every_ location in a region, and map the result.
 
-First, we need some information on destinations. We'll use jobs as our opportunities, so the metric will tell us something about access to economic opportunities. We can get information on job locations from the [Longitudinal Employer-Household Dynamics Origin-Destination Employment Statistics (LEHD LODES) dataset](https://lehd.ces.census.gov). This gives us total employment counts as well as home-to-work flows at the Census block level, based on unemployment insurance. We'll use the `lehdr` package to retrieve these data.
+First, we need some information on destinations. We can use any spatial dataset as our destinations, it just needs to have some column that indicates how many destinations are associated with each feature (for instance, in the dataset below, we have a column that tells us how many jobs are in each Census block).
+
+We'll use jobs as our opportunities, so the metric will tell us something about access to economic opportunities. We can get information on job locations from the [Longitudinal Employer-Household Dynamics Origin-Destination Employment Statistics (LEHD LODES) dataset](https://lehd.ces.census.gov). This gives us total employment counts as well as home-to-work flows at the Census block level, based on unemployment insurance. We'll use the `lehdr` package to retrieve these data.
 
 ```{r}
 orange_durham_jobs = grab_lodes(
