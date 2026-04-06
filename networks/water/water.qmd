@@ -109,10 +109,7 @@ Exercise: plot and interpret the outdegree.
 
 
 ```{r}
-vertices_df$outdegree = degree(graph, mode="out")
-vertices_df |>
-    ggplot(aes(x=outdegree)) +
-        geom_bar()
+# answer:
 
 ```
 
@@ -160,9 +157,7 @@ Exercise: find and map a path from "Anson County" to "Kannapolis".
 
 
 ```{r}
-paths = all_shortest_paths(graph, V(graph)[short_label == "Anson County"], V(graph)[short_label == "Kannapolis"], mode="out")
-
-paths
+# answer:
 
 ```
 
@@ -184,9 +179,7 @@ Exercise: Find and map a path from Durham to Charlotte. (answer: ).
 
 
 ```{r}
-paths = all_shortest_paths(graph, V(graph)[short_label == "Durham"], V(graph)[short_label == "Charlotte"], mode="out")
-
-paths
+# answer
 
 ```
 
@@ -194,7 +187,7 @@ paths
 
 The graph we plotted had several disconnected pieces, one in the Triangle, one in the Charlotte area, and a few others. This is why we couldn't find a path from Durham to Charlotte. The graph-theoretic term for these pieces is "components." A component is a set of vertices that are all connected to one another. In a directed graph, components come in two varieties.
 
-Strong components are groups of vertices where there is a path from every vertex to every other vertex. Generally we find "maximal" strong components - meaning the largest possible sets of vertices that satisfy these criteria. Weak components mean there is a path from every vertex to every other vertex, _or vice-versa_, i.e. there might be a path from vertex i to j but not j to i. I spent [many days addressing issues that arose from mixing them up back in my private sector days](https://github.com/conveyal/r5/issues/228).
+Strong components are groups of vertices where there is a path from every vertex to every other vertex. Generally we find "maximal" strong components - meaning the largest possible sets of vertices that satisfy these criteria. Weak components mean there is a path from every vertex to every other vertex, if you ignore the directions of the edges. I spent [many days addressing issues that arose from mixing them up back in my private sector days](https://github.com/conveyal/r5/issues/228).
 
 The `components` function from `igraph` will identify weak and strong components. It returns a list with three elements: `membership`, which indicates which component each system is part of; `csize`, the size of each component, and `no`, the number of components.
 
@@ -263,11 +256,7 @@ Exercise: calculate and map all the systems that Durham could provide water _to_
 
 
 ```{r}
-durham_downstream = neighborhood(graph, order=3, nodes=V(graph)[short_label == "Durham"], mode="out")
-
-# neighborhood can calculate neighborhoods for many vertices at once, so it returns a list
-# of neighborhoods. Since we only calculated for Durham. 
-V(graph)[durham_downstream[[1]]]$short_label
+# answer
 
 ```
 
