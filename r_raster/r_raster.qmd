@@ -2,7 +2,13 @@
 title: Raster manipulation with R
 ---
 
-We will repeat our Houston development and flooding example using R.
+Raster data is GIS data that is represented as a grid of values over space, rather than as points, lines, and polygons. Basically, it is a picture of the earth from above, and the pixel values could represent anything - it could be color for an aerial photo, or land surface temperature, elevation, etc. It can also represent categorical data, e.g. the type of land use in each pixel.
+
+Houston and especially its southeastern suburbs are particularly vulnerable to flooding during extreme weather events. The Houston area is also one of the fastest growing regions in the country. Given the increasing frequency of extreme weather events it is inadvisable to build in areas that are likely to experience storm surge, but pressure to build more housing for the increasing population can come into conflict with that.
+
+We have data on land use in Houston in 2008 and 2019 from the [Multi-Resolution Land Characteristics Consortium](https://www.mrlc.gov/), and data on forecast storm surge depths along the Houston-Galveston coast from [the USGS SLOSH model](https://www.nhc.noaa.gov/nationalsurge/#data). We will use the data to (1) determine what areas have been built up between 2008 and 2019, and (2) determine how much of that area is in the flood plain.
+
+The data are available on Canvas. Download and unzip them, and set a variable `RASTER_PATH` in your `.Renviron` that indicates where the data are located on your machine.
 
 We will be using the terra package to handle both raster and vector data.
 
@@ -11,14 +17,16 @@ We will be using the terra package to handle both raster and vector data.
 library(tidyverse)
 library(terra)
 
+RASTER_PATH = Sys.getenv("RASTER_PATH")
+
 ```
 
 First, we load our raster land use datasets.
 
 
 ```{r}
-houston_2008 = rast(here::here("r_raster", "houston_2008.tif"))
-houston_2019 = rast(here::here("r_raster", "houston_2019.tif"))
+houston_2008 = rast(file.path(RASTER_PATH, "houston_2008.tif"))
+houston_2019 = rast(file.path(RASTER_PATH, "houston_2019.tif"))
 
 ```
 
@@ -31,35 +39,78 @@ plot(houston_2019)
 
 ```
 
-Creating a new raster layer through raster algebra just uses the normal operators
-we've seen for scalar values
+## Raster algebra
 
-So we can create a houston change layer just like we did before
+One of the primary analytical techniques used with raster data is raster algebra. Raster algebra involves applying mathematical operations to the cells of a raster—or, more often, multiple rasters. When multiple rasters are involved, corresponding cells are overlaid with one another. Creating a new raster layer through raster algebra just uses the normal operators we've seen for scalar values.
+
+The two Houston raster layers are categorical, so let's first look at the possible values.
 
 
 ```{r}
-houston_change = (houston_2019 == 22 | houston_2019 == 23 | houston_2019 == 24) & 
-  (houston_2008 != 22 & houston_2008 != 23 & houston_2008 != 24)
+unique(houston_2008)
+
+```
+
+
+```{r}
+unique(houston_2019)
+
+```
+
+We will consider developed, low, medium, or high intensity to be developed land, and create a new raster layer that shows what cells were _not_ developed in 2008 but were developed in 2019 - i.e. the cells where development occurred in the intervening years.
+
+
+```{r}
+developed = c("Developed, Low Intensity", "Developed, Medium Intensity", "Developed, High Intensity")
+
+# this just checks to make sure all of the land use types we're looking at do occur in the two layers-
+# i.e. we didn't make any typos
+# [,1] gets the first column of the result of unique(), which is the names
+stopifnot(all(developed %in% unique(houston_2008)[,1]))
+stopifnot(all(developed %in% unique(houston_2019)[,1]))
+
+houston_change = (houston_2019 %in% developed) & !(houston_2008 %in% developed)
 
 plot(houston_change)
 
 ```
 
-Now, we can summarize by city.
+We can also evaluate the area developed. In the NLCD, each cell represents a 30x30 meter area. So we can calculate the area developed by multiplying the number of cells developed by 30x30. The `global` function in `terra` allows applying a function to all the cells of a raster. Since our `houston_change` raster is binary (0/1), summing all the cells is the same as counting the cells developed.
 
-First, we need to read the shapefile. This is different from how we read shapefiles
+
+```{r}
+# divide by 1000^2 to get square kilometers
+global(houston_change, sum) * 30 * 30 / 1000^2
+
+```
+
+616 square kilometers of land were developed in the Houston area between 2008 and 2019.
+
+### Agricultural land
+
+Loss of agricultural land is a particularly salient policy concern today. Calculate how much agricultural land was converted to developed land between 2008 and 2019.
+
+
+```{r}
+# answer:
+
+```
+
+## Raster overlay/zonal statistics
+
+For better or worse, in the US, land use policy is almost exclusively made at the local level. We will use raster overlay to combine data on cities in the area around Houston with our calculated development and farm loss to understand what cities it occurs in. Raster overlay overlays a vector dataset on a raster dataset, and applies some operation to the raster cells within the features of that vector.
+
+First, we need to read the shapefile of cities. This is different from how we read shapefiles
 before in R, because terra has its own mechanism for reading and manipulating vector
 data that is separate from the sf library we've used in the past.
 
 
 ```{r}
-places = vect(here::here("r_raster", "texas_census_places.shp"))
+places = vect(file.path(RASTER_PATH, "texas_census_places.shp"))
 
 ```
 
-We need to project the data to match the raster. This is quite easy in terra -
-by passing the raster itself as the second argument to project, project will
-make the projection match that raster.
+As we've seen before, the coordinate system of the vector and raster data don't match. With vector data, reprojection is "lossless" - meaning that you don't lose any information when you do it, and you can reverse it and get the original data back exactly. This is not the case for raster data; reprojection will involve averaging together nearby cells. So whenever we need to make raster and vector data match, we reproject the vector data. This is quite easy in terra -by passing the raster itself as the second argument to project, project will make the projection match that raster.
 
 
 ```{r}
@@ -69,11 +120,7 @@ places = project(places, houston_change)
 
 I'm not going to recommend plotting this - it is very slow
 
-The extract function is the equivalent of zonal statistics. There
-is also an unrelated extract function in tidyverse, so we need to specify to use
-the one from terra. We use na.rm so that areas off the map, in the water, etc. are not
-treated as NAs. We sum up the number of cells where change is `true` by city; when used in
-arithmetic operations, `true` is treated as equivalent to 1, so summing gives us the number of cells.
+The extract function will do the raster overlay. Like global, it applies some function, but now instead of applying it over the entire area it applies it over only the cells that overlap the overlaid polygons. There is also an unrelated extract function in tidyverse, so we need to specify to use the one from terra. We use na.rm so that areas off the map, in the water, etc. are not treated as NAs. We sum up the number of cells where change is `true` by city; when used in arithmetic operations, `true` is treated as equivalent to 1, so summing gives us the number of cells.
 
 
 ```{r}
@@ -82,15 +129,11 @@ head(bycity)
 
 ```
 
-bycity returns a table with two columns - an ID which is the index into the vector
-and a value. We can put this into the places dataset as a new column. The column is still called
-NLCD Land Cover Class because that is what the raster all of this was derived from was called, and
-we never renamed it. Because it has spaces in the column name, we have to use a slightly different,
-quoted syntax to access it.
+extract returns a table with two columns - an ID which is the index into the vector and a value. We can put this into the places dataset as a new column. The column is still called NLCD Land Cover Class because that is what the raster all of this was derived from was called, and we never renamed it. Because it has spaces in the column name, we have to use a slightly different, quoted syntax to access it. I take this opportunity to also convert it to square kilometers instead of the number of cells.
 
 
 ```{r}
-places[bycity$ID, "new_development"] = bycity[,"NLCD Land Cover Class"]
+places[bycity$ID, "new_development_km2"] = bycity[["NLCD Land Cover Class"]] * 30 * 30 / 1000^2
 
 ```
 
@@ -99,12 +142,13 @@ to get the city with the most development
 
 
 ```{r}
-places |> as_tibble() |> arrange(-new_development) |> select(NAME, new_development)
+places |> as_tibble() |> arrange(desc(new_development_km2)) |> select(NAME, new_development_km2)
 
 ```
 
-## Bring in the inundation layer.
-### Excercise: read and plot the inundation layer
+## Inundation
+
+We also have a file, `houston_inundation.tif`, that contains the forecast storm surge depth in a major hurricane. Exercise: read that into R and plot it.
 
 
 ```{r}
@@ -112,7 +156,7 @@ places |> as_tibble() |> arrange(-new_development) |> select(NAME, new_developme
 
 ```
 
-As we saw in QGIS, the inundation layer does not line up perfectly with the
+The inundation layer does not line up perfectly with the
 change layer. We can see that by printing them out. Note that the coordinate
 reference system, extent, and resolution differ.
 
@@ -128,32 +172,14 @@ houston_change
 
 ```
 
-The equivalent of the QGIS align_rasters operation is the project function. We
-previously used it for vector data, but it can be used for raster data as well. This may take
-a few minutes.
+We can use the project function to make them match. Previously used it for vector data, but it can be used for raster data as well. This may take a few minutes. This will interpolate values for each of the change cells. By putting `houston_change` second, we make inundation match houston change, which is what we want since we know the cell size for houston_change. (The cells in `inundation` are based on latitude/longitude values, so don't have a consistent size).
 
 ```{r}
 inundation = project(inundation, houston_change)
 
 ```
 
-### check the coordinate reference system again, confirm they match
-
-
-```{r}
-# answer
-
-```
-
-
-```{r}
-# answer
-
-```
-
-### exercise: compute the development inundation areas by city
-
-First, map areas that have new development and are likely to be inundated.
+Exercise: use the raster calculator to figure out how much of the new development is in areas that are subject to storm surge. The `inundation` layer takes on values from 0 to 99 - where 0 means no flooding, 1-21 means 1-21+ feet of flooding, and 99 indicates areas that are protected by levees. Find development in areas with forecast inundation of 1-21 feet. There will also be some NAs introduced by plaves where the rasters don't overlap; treat those as no risk.
 
 
 ```{r}
